@@ -1,7 +1,9 @@
-const CACHE_NAME = 'texalar-v1';
+const CACHE_NAME = 'texalar-v3';
 const ASSETS = [
   '/texalar-reparto/',
   '/texalar-reparto/index.html',
+  '/texalar-reparto/styles.css',
+  '/texalar-reparto/app.js',
   '/texalar-reparto/manifest.json'
 ];
 
@@ -9,6 +11,7 @@ self.addEventListener('install', e => {
   e.waitUntil(
     caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
   );
+  self.skipWaiting();
 });
 
 self.addEventListener('activate', e => {
@@ -17,6 +20,7 @@ self.addEventListener('activate', e => {
       Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
     )
   );
+  self.clients.claim();
 });
 
 self.addEventListener('fetch', e => {
