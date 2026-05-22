@@ -703,3 +703,34 @@ body {
   padding: 10px 14px;
   font-size: 13px;
 }
+
+/* ── Total ocultable ── */
+.total-prefix {
+  color: white;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.total-amount {
+  color: white;
+  font-size: 20px;
+  font-weight: 500;
+  transition: filter 0.2s;
+  margin-right: 6px;
+}
+
+.total-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: rgba(255,255,255,0.6);
+  font-size: 16px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+}
+
+.total-toggle:hover {
+  color: white;
+}
