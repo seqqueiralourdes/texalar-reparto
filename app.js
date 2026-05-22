@@ -143,11 +143,30 @@ function elegirZona(zona) {
 }
 
 function cambiarZona() {
-  if (!confirm('¿Cambiar la zona de hoy? Se perderán las entregas marcadas hasta ahora.')) return;
+  if (!confirm('¿Cambiar la zona? Las entregas ya realizadas se guardarán en el historial.')) return;
   const today = getToday();
+  const zonaHoy = getZonaHoy();
+  const entregas = state.ruta[today]?.entregas || {};
+
+  // Guardar entregas ya hechas en el historial
+  const clientesZona = clientesDeZona(zonaHoy);
+  const entregasHechas = clientesZona.filter(c => entregas[c.id]?.entregado);
+
+  if (entregasHechas.length > 0) {
+    const resumen = clientesZona.map(c => ({
+      nombre: c.nombre,
+      bidones: entregas[c.id]?.bidones || 0,
+      entregado: entregas[c.id]?.entregado || false
+    }));
+    state.historial.unshift({ fecha: today, zona: zonaHoy + ' (parcial)', entregas: resumen });
+    state.historial = state.historial.slice(0, 60);
+  }
+
   delete state.ruta[today];
   saveState();
   renderSelectorZona();
+  renderOpcionesZona();
+  renderHistorial();
   renderStats();
 }
 
