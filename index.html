@@ -11,7 +11,7 @@
 <body>
   <div class="app">
 
-    <!-- Header con estadísticas del día -->
+    <!-- Header -->
     <header class="header">
       <div class="header-top">
         <div class="header-logo">
@@ -53,19 +53,43 @@
         <span class="nav-icon">👤</span>
         Clientes
       </button>
+      <button class="nav-item" onclick="showTab('zonas', this)">
+        <span class="nav-icon">📍</span>
+        Zonas
+      </button>
       <button class="nav-item" onclick="showTab('historial', this)">
         <span class="nav-icon">📋</span>
         Historial
       </button>
     </nav>
 
-    <!-- Sección: Hoja de ruta -->
+    <!-- Sección: Ruta -->
     <section id="sec-ruta" class="section active">
-      <div class="sec-title">Ruta de hoy</div>
+
+      <!-- Selector de zona (se muestra si no hay zona elegida hoy) -->
+      <div id="zona-selector">
+        <div class="zona-selector-header">
+          <div class="sec-title">¿Qué zona hacés hoy?</div>
+        </div>
+        <div id="zonas-opciones"></div>
+      </div>
+
+      <!-- Zona activa (se muestra si ya eligió zona) -->
+      <div id="zona-activa" style="display:none;">
+        <div class="zona-activa-bar">
+          <div class="zona-activa-info">
+            <span class="zona-activa-label">Zona de hoy</span>
+            <span class="zona-activa-nombre" id="zona-activa-nombre"></span>
+          </div>
+          <button class="zona-cambiar-btn" onclick="cambiarZona()">Cambiar</button>
+        </div>
+      </div>
+
+      <div class="sec-title" id="ruta-subtitle" style="margin-top:12px;">Ruta de hoy</div>
       <div id="ruta-list"></div>
     </section>
 
-    <!-- Botón cerrar reparto (fuera de la sección para posición fija) -->
+    <!-- Botón cerrar reparto -->
     <div class="cerrar-wrap" id="cerrar-wrap" style="display:none;">
       <button class="cerrar-btn" onclick="cerrarReparto()">Cerrar reparto del día</button>
     </div>
@@ -86,6 +110,12 @@
           <label class="form-label" for="inp-tel">Teléfono</label>
           <input class="form-input" type="tel" id="inp-tel" placeholder="Ej: 11 1234-5678">
         </div>
+        <div class="form-group">
+          <label class="form-label" for="inp-zona-cliente">Zona</label>
+          <select class="form-input" id="inp-zona-cliente">
+            <option value="">Seleccioná una zona</option>
+          </select>
+        </div>
         <div class="form-row">
           <div class="form-group">
             <label class="form-label" for="inp-bid">Bidones habituales</label>
@@ -100,6 +130,20 @@
       </div>
       <div class="sec-title">Clientes activos</div>
       <div id="clientes-list"></div>
+    </section>
+
+    <!-- Sección: Zonas -->
+    <section id="sec-zonas" class="section">
+      <div class="form-card">
+        <div class="form-title">Agregar zona</div>
+        <div class="form-group">
+          <label class="form-label" for="inp-zona">Nombre de la zona</label>
+          <input class="form-input" type="text" id="inp-zona" placeholder="Ej: Zona Norte">
+        </div>
+        <button class="add-btn" onclick="agregarZona()">+ Agregar zona</button>
+      </div>
+      <div class="sec-title">Zonas activas</div>
+      <div id="zonas-list"></div>
     </section>
 
     <!-- Sección: Historial -->
