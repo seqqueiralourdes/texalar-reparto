@@ -19,7 +19,18 @@ let state = {
 function loadState() {
   try {
     const s = localStorage.getItem('texalar');
-    if (s) state = JSON.parse(s);
+    if (s) {
+      const saved = JSON.parse(s);
+      state = {
+        ...state,
+        ...saved,
+        zonas: saved.zonas || state.zonas,
+        clientes: saved.clientes || state.clientes,
+        historial: saved.historial || state.historial,
+        ruta: saved.ruta || state.ruta,
+        nextId: saved.nextId || state.nextId
+      };
+    }
   } catch(e) {
     console.error('Error cargando estado:', e);
   }
