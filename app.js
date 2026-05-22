@@ -76,7 +76,8 @@ function renderStats() {
   const pct = total ? Math.round((entregados / total) * 100) : 0;
 
   document.getElementById('stat-clientes').textContent = `${entregados}/${total}`;
-  document.getElementById('stat-total').textContent = formatPeso(totalPesos);
+const totalEl = document.getElementById('stat-total');
+totalEl.innerHTML = `<span class="total-prefix">$</span><span class="total-amount">${Math.round(totalPesos).toLocaleString('es-AR')}</span><button class="total-toggle" onclick="toggleTotal()" id="total-btn" aria-label="Mostrar u ocultar total"><i class="ti ti-eye" id="total-icon"></i></button>`;
   document.getElementById('prog-bar').style.width = pct + '%';
   document.getElementById('prog-pct').textContent = pct + '%';
 
@@ -425,6 +426,17 @@ function showTab(tab, btn) {
     cerrarWrap.style.display = 'none';
   }
 }
+
+
+let totalVisible = true;
+function toggleTotal() {
+  totalVisible = !totalVisible;
+  const amount = document.getElementById('total-amount') || document.querySelector('.total-amount');
+  const icon = document.getElementById('total-icon');
+  if (amount) amount.style.filter = totalVisible ? 'none' : 'blur(4px)';
+  if (icon) icon.className = totalVisible ? 'ti ti-eye' : 'ti ti-eye-off';
+}
+
 
 function renderFecha() {
   const dias = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
