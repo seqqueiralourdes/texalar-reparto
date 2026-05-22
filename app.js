@@ -45,23 +45,79 @@ function formatDate(d) { const [y,m,day] = d.split('-'); return `${day}/${m}/${y
 function initials(nombre) { return nombre.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase(); }
 function getZonaHoy() { return state.ruta[getToday()]?.zona || null; }
 function clientesDeZona(zona) { return state.clientes.filter(c => c.zona === zona); }
-function formatPeso(n) { return '$' + n.toLocaleString('es-AR'); }
+function formatPeso(n) { return '$' + Math.round(n).toLocaleString('es-AR'); }
+function calcularTotal(bid5, bid10) { return (bid5 * PRECIO_5) + (bid10 * PRECIO_10); }
 
-function calcularTotal(bid5, bid10) {
-  return (bid5 * PRECIO_5) + (bid10 * PRECIO_10);
-}
+// ─── Historial en tiempo real ────────────────────────────────
 
-function initRuta(zona) {
+function actualizarHistorialHoy() {
   const today = getToday();
-  if (!state.ruta[today]) state.ruta[today] = { zona, entregas: {} };
-  if (!state.ruta[today].entregas) state.ruta[today].entregas = {};
-  clientesDeZona(zona).forEach(c => {
-    if (!state.ruta[today].entregas[c.id]) {
-      state.ruta[today].entregas[c.id] = { bid5: 0, bid10: c.bidHab, entregado: false };
-    }
-  });
+  const zonaHoy = getZonaHoy();
+  if (!zonaHoy) return;
+
+  const entregas = state.ruta[today]?.entregas || {};
+  const clientesZona = clientesDeZona(zonaHoy);
+  const entregados = clientesZona.filter(c => entregas[c.id]?.entregado);
+  if (!entregados.length) {
+    // Eliminar entrada de hoy si existe y no hay nada entregado
+    state.historial = state.historial.filter(h => h.fecha !== today || h.zona !== zonaHoy);
+    saveState(); renderHistorial(); return;
+  }
+
+  const resumen = clientesZona.map(c => ({
+    nombre: c.nombre,
+    bid5: entregas[c.id]?.bid5 || 0,
+    bid10: entregas[c.id]?.bid10 || 0,
+    entregado: entregas[c.id]?.entregado || false
+  }));
+
+  // Actualizar o insertar entrada de hoy
+  const idx = state.historial.findIndex(h => h.fecha === today && h.zona === zonaHoy);
+  const entrada = { fecha: today, zona: zonaHoy, entregas: resumen, enCurso: true };
+  if (idx >= 0) {
+    state.historial[idx] = entrada;
+  } else {
+    state.historial.unshift(entrada);
+  }
+  state.historial = state.historial.slice(0, 60);
   saveState();
+  renderHistorial();
 }
+
+function exportarResumen() {
+  const today = getToday();
+  const zonaHoy = getZonaHoy();
+  const entregas = state.ruta[today]?.entregas || {};
+  const clientesZona = clientesDeZona(zonaHoy);
+  const entregados = clientesZona.filter(c => entregas[c.id]?.entregado);
+
+  if (!entregados.length) { alert('No hay entregas realizadas hoy.'); return; }
+
+  let texto = `TEXALAR REPARTO — ${formatDate(today)}\n`;
+  texto += `Zona: ${zonaHoy}\n`;
+  texto += `${'─'.repeat(30)}\n`;
+  entregados.forEach(c => {
+    const e = entregas[c.id];
+    const total = calcularTotal(e.bid5||0, e.bid10||0);
+    texto += `• ${c.nombre}\n`;
+    if (e.bid5 > 0) texto += `  ${e.bid5} bidón/es 5lts\n`;
+    if (e.bid10 > 0) texto += `  ${e.bid10} bidón/es 10lts\n`;
+    texto += `  Subtotal: ${formatPeso(total)}\n`;
+  });
+  texto += `${'─'.repeat(30)}\n`;
+  const totalDia = entregados.reduce((s,c) => s + calcularTotal(entregas[c.id]?.bid5||0, entregas[c.id]?.bid10||0), 0);
+  texto += `TOTAL: ${formatPeso(totalDia)}\n`;
+
+  // Copiar al portapapeles
+  navigator.clipboard.writeText(texto).then(() => {
+    alert('¡Resumen copiado al portapapeles! Podés pegarlo en WhatsApp, notas, etc.');
+  }).catch(() => {
+    // Fallback: mostrar en prompt para copiar manualmente
+    prompt('Copiá este resumen:', texto);
+  });
+}
+
+// ─── Stats ───────────────────────────────────────────────────
 
 function renderStats() {
   const today = getToday();
@@ -72,17 +128,38 @@ function renderStats() {
   const entregados = clientes.filter(c => entregas[c.id]?.entregado).length;
   const totalPesos = clientes
     .filter(c => entregas[c.id]?.entregado)
-    .reduce((s, c) => s + calcularTotal(entregas[c.id]?.bid5||0, entregas[c.id]?.bid10||0), 0);
-  const pct = total ? Math.round((entregados / total) * 100) : 0;
+    .reduce((s,c) => s + calcularTotal(entregas[c.id]?.bid5||0, entregas[c.id]?.bid10||0), 0);
+  const pct = total ? Math.round((entregados/total)*100) : 0;
 
   document.getElementById('stat-clientes').textContent = `${entregados}/${total}`;
-const totalEl = document.getElementById('stat-total');
-totalEl.innerHTML = `<span class="total-prefix">$</span><span class="total-amount">${Math.round(totalPesos).toLocaleString('es-AR')}</span><button class="total-toggle" onclick="toggleTotal()" id="total-btn" aria-label="Mostrar u ocultar total"><i class="ti ti-eye" id="total-icon"></i></button>`;
   document.getElementById('prog-bar').style.width = pct + '%';
   document.getElementById('prog-pct').textContent = pct + '%';
 
-  document.getElementById('cerrar-wrap').style.display = entregados > 0 ? 'block' : 'none';
+  const totalEl = document.getElementById('stat-total');
+  if (totalEl) {
+    totalEl.innerHTML = `<span class="total-prefix">$</span><span class="total-amount" id="total-amount">${Math.round(totalPesos).toLocaleString('es-AR')}</span><button class="total-toggle" onclick="toggleTotal()" aria-label="Mostrar u ocultar total"><i class="ti ti-eye" id="total-icon"></i></button>`;
+    if (!totalVisible) {
+      const amt = document.getElementById('total-amount');
+      if (amt) amt.style.filter = 'blur(4px)';
+      const icon = document.getElementById('total-icon');
+      if (icon) icon.className = 'ti ti-eye-off';
+    }
+  }
+
+  const exportarBtn = document.getElementById('exportar-wrap');
+  if (exportarBtn) exportarBtn.style.display = entregados > 0 ? 'block' : 'none';
 }
+
+let totalVisible = true;
+function toggleTotal() {
+  totalVisible = !totalVisible;
+  const amt = document.getElementById('total-amount');
+  const icon = document.getElementById('total-icon');
+  if (amt) amt.style.filter = totalVisible ? 'none' : 'blur(4px)';
+  if (icon) icon.className = totalVisible ? 'ti ti-eye' : 'ti ti-eye-off';
+}
+
+// ─── Selector de zona ────────────────────────────────────────
 
 function renderSelectorZona() {
   const zonaHoy = getZonaHoy();
@@ -125,24 +202,8 @@ function elegirZona(zona) {
 }
 
 function cambiarZona() {
-  if (!confirm('¿Cambiar la zona? Las entregas ya realizadas se guardarán en el historial.')) return;
+  if (!confirm('¿Cambiar la zona? Las entregas ya realizadas quedan guardadas en el historial.')) return;
   const today = getToday();
-  const zonaHoy = getZonaHoy();
-  const entregas = state.ruta[today]?.entregas || {};
-  const clientesZona = clientesDeZona(zonaHoy);
-  const entregasHechas = clientesZona.filter(c => entregas[c.id]?.entregado);
-
-  if (entregasHechas.length > 0) {
-    const resumen = clientesZona.map(c => ({
-      nombre: c.nombre,
-      bid5: entregas[c.id]?.bid5 || 0,
-      bid10: entregas[c.id]?.bid10 || 0,
-      entregado: entregas[c.id]?.entregado || false
-    }));
-    state.historial.unshift({ fecha: today, zona: zonaHoy + ' (parcial)', entregas: resumen });
-    state.historial = state.historial.slice(0, 60);
-  }
-
   delete state.ruta[today];
   saveState();
   renderSelectorZona();
@@ -150,6 +211,20 @@ function cambiarZona() {
   renderHistorial();
   renderStats();
 }
+
+function initRuta(zona) {
+  const today = getToday();
+  if (!state.ruta[today]) state.ruta[today] = { zona, entregas: {} };
+  if (!state.ruta[today].entregas) state.ruta[today].entregas = {};
+  clientesDeZona(zona).forEach(c => {
+    if (!state.ruta[today].entregas[c.id]) {
+      state.ruta[today].entregas[c.id] = { bid5: 0, bid10: c.bidHab, entregado: false };
+    }
+  });
+  saveState();
+}
+
+// ─── Ruta ────────────────────────────────────────────────────
 
 function renderRuta() {
   const today = getToday();
@@ -166,10 +241,9 @@ function renderRuta() {
     renderStats(); return;
   }
 
-  // Pendientes
   const pendientes = clientes.filter(c => !entregas[c.id]?.entregado);
   const pendientesHtml = pendientes.length
-    ? `<div class="pendientes-bar">⏳ ${pendientes.length} pendiente${pendientes.length !== 1 ? 's' : ''}: ${pendientes.map(c => c.nombre.split(' ')[0]).join(', ')}</div>`
+    ? `<div class="pendientes-bar">⏳ ${pendientes.length} pendiente${pendientes.length!==1?'s':''}: ${pendientes.map(c=>c.nombre.split(' ')[0]).join(', ')}</div>`
     : `<div class="pendientes-bar pendientes-ok">✅ Todos entregados</div>`;
 
   document.getElementById('ruta-list').innerHTML = pendientesHtml + clientes.map(c => {
@@ -177,15 +251,15 @@ function renderRuta() {
     const done = r.entregado;
     const total = calcularTotal(r.bid5, r.bid10);
     return `
-      <div class="card ${done ? 'done' : ''}">
+      <div class="card ${done?'done':''}">
         <div class="card-top">
-          <div class="stop-badge ${done ? 'done' : ''}">${c.orden}</div>
+          <div class="stop-badge ${done?'done':''}">${c.orden}</div>
           <div style="flex:1;min-width:0;">
-            <div class="client-name ${done ? 'done' : ''}">${c.nombre}</div>
+            <div class="client-name ${done?'done':''}">${c.nombre}</div>
             <div class="client-addr">📍 ${c.dir}</div>
-            ${c.tel ? `<div class="client-tel">📞 ${c.tel}</div>` : ''}
+            ${c.tel?`<div class="client-tel">📞 ${c.tel}</div>`:''}
           </div>
-          ${done ? `<div class="card-total">${formatPeso(total)}</div>` : ''}
+          ${done?`<div class="card-total">${formatPeso(total)}</div>`:''}
         </div>
         <div class="bid-grid">
           <div class="bid-row">
@@ -206,7 +280,7 @@ function renderRuta() {
         <div class="card-bottom">
           <div class="subtotal">Subtotal: <strong>${formatPeso(total)}</strong></div>
           <button class="mark-btn ${done?'done':''}" onclick="toggleEntregado(${c.id})">
-            ${done ? '✓ Entregado' : 'Marcar entregado'}
+            ${done?'✓ Entregado':'Marcar entregado'}
           </button>
         </div>
       </div>`;
@@ -232,34 +306,12 @@ function toggleEntregado(id) {
     state.ruta[today].entregas[id] = { bid5: 0, bid10: c.bidHab, entregado: false };
   }
   state.ruta[today].entregas[id].entregado = !state.ruta[today].entregas[id].entregado;
-  saveState(); renderRuta();
-}
-
-function cerrarReparto() {
-  const today = getToday();
-  const zonaHoy = getZonaHoy();
-  const entregas = state.ruta[today]?.entregas || {};
-  if (!confirm('¿Cerrar el reparto de hoy y guardarlo en el historial?')) return;
-
-  const clientes = clientesDeZona(zonaHoy);
-  const resumen = clientes.map(c => ({
-    nombre: c.nombre,
-    bid5: entregas[c.id]?.bid5 || 0,
-    bid10: entregas[c.id]?.bid10 || 0,
-    entregado: entregas[c.id]?.entregado || false
-  }));
-
-  state.historial.unshift({ fecha: today, zona: zonaHoy, entregas: resumen });
-  state.historial = state.historial.slice(0, 60);
-  delete state.ruta[today];
-
   saveState();
-  renderSelectorZona();
   renderRuta();
-  renderHistorial();
-  renderStats();
-  alert('¡Reparto cerrado! Guardado en el historial.');
+  actualizarHistorialHoy();
 }
+
+// ─── Zonas ───────────────────────────────────────────────────
 
 function renderZonas() {
   const list = document.getElementById('zonas-list');
@@ -306,6 +358,8 @@ function renderZonaSelect() {
     state.zonas.map(z => `<option value="${z}">${z}</option>`).join('');
 }
 
+// ─── Clientes ────────────────────────────────────────────────
+
 function renderClientes() {
   const sorted = [...state.clientes].sort((a,b) => a.orden - b.orden);
   if (!sorted.length) {
@@ -318,10 +372,10 @@ function renderClientes() {
       <div class="client-info">
         <div class="client-card-name">${c.nombre}</div>
         <div class="client-card-detail">📍 ${c.dir}</div>
-        ${c.tel ? `<div class="client-card-detail">📞 ${c.tel}</div>` : ''}
+        ${c.tel?`<div class="client-card-detail">📞 ${c.tel}</div>`:''}
         <div class="client-tags">
           <span class="tag tag-blue">💧 ${c.bidHab} bidones</span>
-          <span class="tag tag-gray">${c.zona || 'Sin zona'}</span>
+          <span class="tag tag-gray">${c.zona||'Sin zona'}</span>
           <span class="tag tag-gray">Parada ${c.orden}</span>
         </div>
       </div>
@@ -357,86 +411,97 @@ function eliminarCliente(id) {
   renderClientes(); renderRuta(); renderZonas();
 }
 
+// ─── Historial ───────────────────────────────────────────────
+
 function renderHistorial() {
   if (!state.historial.length) {
-    document.getElementById('hist-list').innerHTML = '<div class="empty">Todavía no hay repartos cerrados.</div>';
+    document.getElementById('hist-list').innerHTML = '<div class="empty">Todavía no hay entregas realizadas.</div>';
     return;
   }
-  document.getElementById('hist-list').innerHTML = state.historial.map((h, idx) => {
-    const entregados = h.entregas.filter(e => e.entregado);
-    const totalPesos = entregados.reduce((s,e) => s + calcularTotal(e.bid5||0, e.bid10||0), 0);
-    const totalBid = entregados.reduce((s,e) => s + (e.bid5||0) + (e.bid10||0), 0);
-    return `
-      <div class="hist-card">
-        <div class="hist-head" onclick="toggleHist(${idx})">
-          <div>
-            <div class="hist-title">${formatDate(h.fecha)}</div>
-            <div class="hist-sub">
-              <span class="tag tag-blue">📍 ${h.zona}</span>
-              <span>${entregados.length} clientes · ${totalBid} bidones</span>
-              <span class="hist-total">${formatPeso(totalPesos)}</span>
+
+  // Agrupar por fecha
+  const porFecha = {};
+  state.historial.forEach(h => {
+    if (!porFecha[h.fecha]) porFecha[h.fecha] = [];
+    porFecha[h.fecha].push(h);
+  });
+
+  document.getElementById('hist-list').innerHTML = Object.keys(porFecha)
+    .sort((a,b) => b.localeCompare(a))
+    .map(fecha => {
+      const zonas = porFecha[fecha];
+      const totalDia = zonas.reduce((s,z) => {
+        return s + z.entregas.filter(e=>e.entregado).reduce((ss,e) => ss + calcularTotal(e.bid5||0,e.bid10||0), 0);
+      }, 0);
+      const totalClientes = zonas.reduce((s,z) => s + z.entregas.filter(e=>e.entregado).length, 0);
+
+      return `
+        <div class="hist-fecha-grupo">
+          <div class="hist-fecha-header">
+            <div>
+              <div class="hist-fecha-title">${formatDate(fecha)}</div>
+              <div class="hist-fecha-sub">${totalClientes} entregas · ${formatPeso(totalDia)}</div>
             </div>
           </div>
-          <span class="hist-arrow" id="hist-arrow-${idx}">›</span>
-        </div>
-        <div id="hist-body-${idx}" class="hist-body" style="display:none;">
-          ${h.entregas.map(e => {
-            const subtotal = calcularTotal(e.bid5||0, e.bid10||0);
+          ${zonas.map((h, idx) => {
+            const entregados = h.entregas.filter(e=>e.entregado);
+            const totalZona = entregados.reduce((s,e) => s + calcularTotal(e.bid5||0,e.bid10||0), 0);
+            const uid = fecha.replace(/-/g,'') + idx;
             return `
-              <div class="hist-row">
-                <span>${e.nombre}</span>
-                ${e.entregado ? `
-                  <div class="hist-row-right">
-                    <span class="hist-bid-detail">${e.bid5||0}×5lts ${e.bid10||0}×10lts</span>
-                    <span class="badge-ok">${formatPeso(subtotal)}</span>
-                  </div>` : '<span class="badge-no">No entregado</span>'}
+              <div class="hist-zona-card">
+                <div class="hist-head" onclick="toggleHist('${uid}')">
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <span class="tag tag-blue">📍 ${h.zona}</span>
+                    ${h.enCurso ? '<span class="tag-en-curso">En curso</span>' : ''}
+                  </div>
+                  <div style="display:flex;align-items:center;gap:10px;">
+                    <span class="hist-zona-total">${formatPeso(totalZona)}</span>
+                    <span class="hist-arrow" id="hist-arrow-${uid}">›</span>
+                  </div>
+                </div>
+                <div id="hist-body-${uid}" class="hist-body" style="display:none;">
+                  ${entregados.map(e => {
+                    const subtotal = calcularTotal(e.bid5||0, e.bid10||0);
+                    return `
+                      <div class="hist-row">
+                        <span>${e.nombre}</span>
+                        <div class="hist-row-right">
+                          <span class="hist-bid-detail">${e.bid5>0?e.bid5+'×5lts ':''} ${e.bid10>0?e.bid10+'×10lts':''}</span>
+                          <span class="badge-ok">${formatPeso(subtotal)}</span>
+                        </div>
+                      </div>`;
+                  }).join('')}
+                  <div class="hist-row hist-row-total">
+                    <strong>Total zona</strong>
+                    <strong>${formatPeso(totalZona)}</strong>
+                  </div>
+                </div>
               </div>`;
           }).join('')}
-          <div class="hist-row hist-row-total">
-            <strong>Total recaudado</strong>
-            <strong>${formatPeso(totalPesos)}</strong>
-          </div>
-        </div>
-      </div>`;
-  }).join('');
+        </div>`;
+    }).join('');
 }
 
-function toggleHist(idx) {
-  const body = document.getElementById('hist-body-'+idx);
-  const arrow = document.getElementById('hist-arrow-'+idx);
+function toggleHist(uid) {
+  const body = document.getElementById('hist-body-'+uid);
+  const arrow = document.getElementById('hist-arrow-'+uid);
   const open = body.style.display !== 'none';
   body.style.display = open ? 'none' : 'block';
   arrow.style.transform = open ? '' : 'rotate(90deg)';
 }
+
+// ─── Navegación ──────────────────────────────────────────────
 
 function showTab(tab, btn) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(t => t.classList.remove('active'));
   document.getElementById('sec-'+tab).classList.add('active');
   btn.classList.add('active');
-
-  const cerrarWrap = document.getElementById('cerrar-wrap');
-  if (tab === 'ruta') {
-    renderStats();
-    const zonaHoy = getZonaHoy();
-    cerrarWrap.style.display = zonaHoy && state.clientes.some(c =>
-      state.ruta[getToday()]?.entregas?.[c.id]?.entregado
-    ) ? 'block' : 'none';
-  } else {
-    cerrarWrap.style.display = 'none';
-  }
+  const exportarWrap = document.getElementById('exportar-wrap');
+  if (exportarWrap) exportarWrap.style.display = tab === 'ruta' && getZonaHoy() ? 'block' : 'none';
 }
 
-
-let totalVisible = true;
-function toggleTotal() {
-  totalVisible = !totalVisible;
-  const amount = document.getElementById('total-amount') || document.querySelector('.total-amount');
-  const icon = document.getElementById('total-icon');
-  if (amount) amount.style.filter = totalVisible ? 'none' : 'blur(4px)';
-  if (icon) icon.className = totalVisible ? 'ti ti-eye' : 'ti ti-eye-off';
-}
-
+// ─── Fecha ───────────────────────────────────────────────────
 
 function renderFecha() {
   const dias = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
@@ -444,6 +509,8 @@ function renderFecha() {
   const hoy = new Date();
   document.getElementById('fecha-hoy').textContent = `${dias[hoy.getDay()]} ${hoy.getDate()} de ${meses[hoy.getMonth()]}`;
 }
+
+// ─── Arranque ────────────────────────────────────────────────
 
 loadState();
 renderFecha();
