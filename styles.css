@@ -704,6 +704,54 @@ body {
   font-size: 13px;
 }
 
+/* ── Historial agrupado por fecha ── */
+.hist-fecha-grupo {
+  margin-bottom: 16px;
+}
+
+.hist-fecha-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 2px 6px;
+}
+
+.hist-fecha-title {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-text-primary, #1a1a1a);
+}
+
+.hist-fecha-sub {
+  font-size: 12px;
+  color: #888;
+  margin-top: 2px;
+}
+
+.hist-zona-card {
+  background: white;
+  border-radius: 14px;
+  margin-bottom: 8px;
+  border: 0.5px solid #e4e8ed;
+  overflow: hidden;
+}
+
+.hist-zona-total {
+  font-size: 13px;
+  font-weight: 500;
+  color: #0C447C;
+}
+
+.tag-en-curso {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-weight: 500;
+  background: #FFF8E6;
+  color: #7A5C00;
+  border: 0.5px solid #F0D080;
+}
+
 /* ── Total ocultable ── */
 .total-prefix {
   color: white;
