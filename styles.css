@@ -619,3 +619,87 @@ body {
   padding: 3rem 1rem;
   font-size: 14px;
 }
+
+/* ── Grilla de bidones por tipo ── */
+.bid-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.bid-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bid-tipo {
+  font-size: 12px;
+  font-weight: 600;
+  color: #0C447C;
+  width: 36px;
+  flex-shrink: 0;
+}
+
+.bid-precio {
+  font-size: 11px;
+  color: #aaa;
+  margin-left: 4px;
+}
+
+.subtotal {
+  font-size: 13px;
+  color: #555;
+}
+
+.card-total {
+  font-size: 15px;
+  font-weight: 700;
+  color: #27500A;
+  background: #EAF3DE;
+  padding: 4px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+/* ── Pendientes bar ── */
+.pendientes-bar {
+  background: #FFF8E6;
+  border: 0.5px solid #F0D080;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: #7A5C00;
+  margin-bottom: 12px;
+}
+
+.pendientes-ok {
+  background: #EAF3DE;
+  border-color: #B5D98A;
+  color: #27500A;
+}
+
+/* ── Historial con totales ── */
+.hist-total {
+  font-weight: 700;
+  color: #0C447C;
+}
+
+.hist-row-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hist-bid-detail {
+  font-size: 11px;
+  color: #aaa;
+}
+
+.hist-row-total {
+  background: #f0f4f8;
+  margin: 0 -14px;
+  padding: 10px 14px;
+  font-size: 13px;
+}
