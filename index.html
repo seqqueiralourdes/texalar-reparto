@@ -1,354 +1,115 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#185FA5">
-<title>Texalar Reparto</title>
-<link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
-<style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f4f8; color: #1a1a1a; min-height: 100vh; }
-.app { max-width: 480px; margin: 0 auto; padding: 1rem; padding-bottom: 80px; }
-.header { background: #185FA5; color: white; border-radius: 14px; padding: 1rem 1.25rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 12px; }
-.header-icon { width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
-.header-title { font-size: 18px; font-weight: 600; }
-.header-sub { font-size: 13px; opacity: 0.8; margin-top: 2px; }
-.tabs { display: flex; gap: 6px; margin-bottom: 1rem; background: white; border-radius: 12px; padding: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-.tab { flex: 1; padding: 9px 4px; border: none; border-radius: 8px; background: transparent; color: #666; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; transition: all 0.15s; }
-.tab.active { background: #185FA5; color: white; }
-.section { display: none; }
-.section.active { display: block; }
-.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 1rem; }
-.stat { background: white; border-radius: 12px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
-.stat-label { font-size: 11px; color: #888; margin-bottom: 4px; }
-.stat-value { font-size: 22px; font-weight: 600; color: #185FA5; }
-.card { background: white; border-radius: 12px; padding: 1rem; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
-.card-header { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
-.stop-num { width: 30px; height: 30px; border-radius: 50%; background: #E6F1FB; color: #185FA5; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; flex-shrink: 0; margin-top: 2px; }
-.stop-num.done { background: #EAF3DE; color: #3B6D11; }
-.client-name { font-weight: 600; font-size: 15px; }
-.client-addr { font-size: 13px; color: #666; margin-top: 3px; }
-.route-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.bidones-control { display: flex; align-items: center; gap: 10px; }
-.btn-circle { width: 34px; height: 34px; border-radius: 50%; border: 1.5px solid #ddd; background: white; cursor: pointer; font-size: 20px; display: flex; align-items: center; justify-content: center; color: #185FA5; font-weight: 600; }
-.btn-circle:active { background: #f0f4f8; }
-.bidones-num { font-size: 20px; font-weight: 600; min-width: 28px; text-align: center; }
-.entregado-btn { padding: 8px 14px; border-radius: 8px; border: 1.5px solid #ddd; background: white; cursor: pointer; font-size: 13px; font-weight: 500; color: #444; }
-.entregado-btn.done { background: #EAF3DE; border-color: #C0DD97; color: #3B6D11; }
-.section-title { font-size: 15px; font-weight: 600; margin-bottom: 10px; color: #333; }
-.form-card { background: white; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
-.form-group { margin-bottom: 12px; }
-.form-label { font-size: 13px; color: #666; margin-bottom: 4px; display: block; }
-input[type=text], input[type=number], input[type=tel] { width: 100%; padding: 10px 12px; border: 1.5px solid #e0e0e0; border-radius: 8px; font-size: 14px; background: #fafafa; }
-input:focus { outline: none; border-color: #185FA5; background: white; }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.add-btn { width: 100%; padding: 12px; background: #185FA5; color: white; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 4px; }
-.add-btn:active { background: #0C447C; }
-.client-card { background: white; border-radius: 12px; padding: 1rem; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.client-info { flex: 1; }
-.tag { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 3px 8px; border-radius: 20px; margin-top: 6px; margin-right: 4px; }
-.tag-blue { background: #E6F1FB; color: #185FA5; }
-.tag-gray { background: #f0f0f0; color: #555; }
-.delete-btn { background: none; border: 1.5px solid #eee; border-radius: 8px; padding: 8px 10px; cursor: pointer; color: #aaa; font-size: 14px; }
-.delete-btn:active { color: #c0392b; border-color: #f09595; background: #fff5f5; }
-.hist-day { background: white; border-radius: 12px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); overflow: hidden; }
-.hist-day-header { padding: 12px 1rem; display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
-.hist-day-title { font-weight: 600; font-size: 14px; }
-.hist-day-body { padding: 0 1rem 1rem; border-top: 1px solid #f0f0f0; }
-.hist-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 7px 0; border-bottom: 1px solid #f5f5f5; }
-.hist-row:last-child { border-bottom: none; }
-.empty { text-align: center; color: #aaa; padding: 2.5rem 1rem; font-size: 14px; }
-.cerrar-btn { width: 100%; padding: 13px; background: white; color: #185FA5; border: 2px solid #185FA5; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 8px; }
-.cerrar-btn:active { background: #E6F1FB; }
-.badge-done { background: #EAF3DE; color: #3B6D11; font-size: 12px; padding: 3px 8px; border-radius: 20px; }
-.badge-no { background: #f5f5f5; color: #aaa; font-size: 12px; padding: 3px 8px; border-radius: 20px; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0C447C">
+  <title>Texalar Reparto</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<div class="app">
-  <div class="header">
-    <div class="header-icon">💧</div>
-    <div>
-      <div class="header-title">Texalar Reparto</div>
-      <div class="header-sub" id="fecha-hoy"></div>
+  <div class="app">
+
+    <!-- Header con estadísticas del día -->
+    <header class="header">
+      <div class="header-top">
+        <div class="header-logo">
+          <div class="header-logo-icon">💧</div>
+          <span class="header-logo-name">Texalar</span>
+        </div>
+        <span class="header-date" id="fecha-hoy"></span>
+      </div>
+      <div class="header-stats">
+        <div class="hstat">
+          <div class="hstat-label">Clientes visitados</div>
+          <div class="hstat-val" id="stat-clientes">0/0</div>
+        </div>
+        <div class="hstat">
+          <div class="hstat-label">Bidones entregados</div>
+          <div class="hstat-val" id="stat-bidones">0</div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Barra de progreso -->
+    <div class="progress-wrap">
+      <div class="progress-top">
+        <span>Progreso del reparto</span>
+        <span id="prog-pct">0%</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar" id="prog-bar" style="width:0%"></div>
+      </div>
     </div>
-  </div>
 
-  <div class="tabs">
-    <button class="tab active" onclick="showTab('ruta', this)"><i class="ti ti-map-route"></i> Ruta</button>
-    <button class="tab" onclick="showTab('clientes', this)"><i class="ti ti-users"></i> Clientes</button>
-    <button class="tab" onclick="showTab('historial', this)"><i class="ti ti-history"></i> Historial</button>
-  </div>
+    <!-- Navegación -->
+    <nav class="nav">
+      <button class="nav-item active" onclick="showTab('ruta', this)">
+        <span class="nav-icon">🗺️</span>
+        Ruta
+      </button>
+      <button class="nav-item" onclick="showTab('clientes', this)">
+        <span class="nav-icon">👤</span>
+        Clientes
+      </button>
+      <button class="nav-item" onclick="showTab('historial', this)">
+        <span class="nav-icon">📋</span>
+        Historial
+      </button>
+    </nav>
 
-  <div id="sec-ruta" class="section active">
-    <div class="stats-grid" id="stats"></div>
-    <div class="section-title">Ruta de hoy</div>
-    <div id="ruta-list"></div>
-    <button class="cerrar-btn" onclick="cerrarReparto()">Cerrar reparto del día</button>
-  </div>
+    <!-- Sección: Hoja de ruta -->
+    <section id="sec-ruta" class="section active">
+      <div class="sec-title">Ruta de hoy</div>
+      <div id="ruta-list"></div>
+    </section>
 
-  <div id="sec-clientes" class="section">
-    <div class="form-card">
-      <div class="section-title">Agregar cliente</div>
-      <div class="form-group">
-        <label class="form-label">Nombre completo</label>
-        <input type="text" id="inp-nombre" placeholder="Ej: Juan García">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Dirección</label>
-        <input type="text" id="inp-dir" placeholder="Ej: Av. San Martín 1234">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Teléfono</label>
-        <input type="tel" id="inp-tel" placeholder="Ej: 11 1234-5678">
-      </div>
-      <div class="form-row">
+    <!-- Botón cerrar reparto (fuera de la sección para posición fija) -->
+    <div class="cerrar-wrap" id="cerrar-wrap" style="display:none;">
+      <button class="cerrar-btn" onclick="cerrarReparto()">Cerrar reparto del día</button>
+    </div>
+
+    <!-- Sección: Clientes -->
+    <section id="sec-clientes" class="section">
+      <div class="form-card">
+        <div class="form-title">Agregar cliente</div>
         <div class="form-group">
-          <label class="form-label">Bidones habituales</label>
-          <input type="number" id="inp-bid" placeholder="2" min="1" max="50">
+          <label class="form-label" for="inp-nombre">Nombre completo</label>
+          <input class="form-input" type="text" id="inp-nombre" placeholder="Ej: Juan García">
         </div>
         <div class="form-group">
-          <label class="form-label">Orden en ruta</label>
-          <input type="number" id="inp-orden" placeholder="Ej: 3" min="1">
+          <label class="form-label" for="inp-dir">Dirección</label>
+          <input class="form-input" type="text" id="inp-dir" placeholder="Ej: Av. San Martín 1234">
         </div>
+        <div class="form-group">
+          <label class="form-label" for="inp-tel">Teléfono</label>
+          <input class="form-input" type="tel" id="inp-tel" placeholder="Ej: 11 1234-5678">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="inp-bid">Bidones habituales</label>
+            <input class="form-input" type="number" id="inp-bid" placeholder="2" min="1" max="50">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="inp-orden">Orden en ruta</label>
+            <input class="form-input" type="number" id="inp-orden" placeholder="Ej: 3" min="1">
+          </div>
+        </div>
+        <button class="add-btn" onclick="agregarCliente()">+ Agregar cliente</button>
       </div>
-      <button class="add-btn" onclick="agregarCliente()">+ Agregar cliente</button>
-    </div>
-    <div class="section-title">Clientes activos</div>
-    <div id="clientes-list"></div>
+      <div class="sec-title">Clientes activos</div>
+      <div id="clientes-list"></div>
+    </section>
+
+    <!-- Sección: Historial -->
+    <section id="sec-historial" class="section">
+      <div class="sec-title">Repartos anteriores</div>
+      <div id="hist-list"></div>
+    </section>
+
   </div>
 
-  <div id="sec-historial" class="section">
-    <div class="section-title">Repartos anteriores</div>
-    <div id="hist-list"></div>
-  </div>
-</div>
-
-<script>
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').catch(console.error);
-}
-
-let state = {
-  clientes: [
-    { id:1, nombre:"María Rodríguez", dir:"Av. Rivadavia 2450, Piso 1", tel:"11 4523-1890", bidHab:2, orden:1 },
-    { id:2, nombre:"Carlos Méndez", dir:"Calle Belgrano 780", tel:"11 3201-4455", bidHab:3, orden:2 },
-    { id:3, nombre:"Supermercado El Sol", dir:"Av. San Martín 1100, Local 4", tel:"11 5588-2200", bidHab:6, orden:3 },
-  ],
-  ruta: {},
-  historial: [],
-  nextId: 4
-};
-
-function loadState() {
-  try { const s = localStorage.getItem('texalar'); if (s) state = JSON.parse(s); } catch(e) {}
-}
-function saveState() {
-  try { localStorage.setItem('texalar', JSON.stringify(state)); } catch(e) {}
-}
-function getToday() { return new Date().toISOString().slice(0,10); }
-function formatDate(d) { const [y,m,day] = d.split('-'); return `${day}/${m}/${y}`; }
-
-function initRuta() {
-  const today = getToday();
-  if (!state.ruta[today]) {
-    state.ruta[today] = {};
-    state.clientes.forEach(c => {
-      state.ruta[today][c.id] = { bidones: c.bidHab, entregado: false };
-    });
-    saveState();
-  } else {
-    state.clientes.forEach(c => {
-      if (!state.ruta[today][c.id]) {
-        state.ruta[today][c.id] = { bidones: c.bidHab, entregado: false };
-      }
-    });
-    saveState();
-  }
-}
-
-function renderStats() {
-  const today = getToday();
-  const ruta = state.ruta[today] || {};
-  const total = state.clientes.length;
-  const entregados = state.clientes.filter(c => ruta[c.id]?.entregado).length;
-  const totalBid = state.clientes.reduce((s,c) => s + (ruta[c.id]?.bidones || 0), 0);
-  const entregBid = state.clientes.filter(c => ruta[c.id]?.entregado).reduce((s,c) => s + (ruta[c.id]?.bidones || 0), 0);
-  document.getElementById('stats').innerHTML = `
-    <div class="stat"><div class="stat-label">Clientes</div><div class="stat-value">${entregados}/${total}</div></div>
-    <div class="stat"><div class="stat-label">Entregados</div><div class="stat-value">${entregBid}</div></div>
-    <div class="stat"><div class="stat-label">Pendientes</div><div class="stat-value">${totalBid - entregBid}</div></div>
-  `;
-}
-
-function renderRuta() {
-  const today = getToday();
-  const ruta = state.ruta[today] || {};
-  const sorted = [...state.clientes].sort((a,b) => a.orden - b.orden);
-  if (!sorted.length) {
-    document.getElementById('ruta-list').innerHTML = '<div class="empty">No hay clientes. Agregá desde la pestaña Clientes.</div>';
-    renderStats(); return;
-  }
-  document.getElementById('ruta-list').innerHTML = sorted.map(c => {
-    const r = ruta[c.id] || { bidones: c.bidHab, entregado: false };
-    const done = r.entregado;
-    return `<div class="card">
-      <div class="card-header">
-        <div class="stop-num ${done?'done':''}">${c.orden}</div>
-        <div style="flex:1;">
-          <div class="client-name" style="${done?'text-decoration:line-through;color:#aaa;':''}">${c.nombre}</div>
-          <div class="client-addr">📍 ${c.dir}</div>
-          ${c.tel ? `<div class="client-addr">📞 ${c.tel}</div>` : ''}
-        </div>
-      </div>
-      <div class="route-row">
-        <div class="bidones-control">
-          <button class="btn-circle" onclick="cambiarBidones(${c.id},-1)" ${done?'disabled':''}>−</button>
-          <div class="bidones-num">${r.bidones}</div>
-          <button class="btn-circle" onclick="cambiarBidones(${c.id},1)" ${done?'disabled':''}>+</button>
-          <span style="font-size:13px;color:#888;">bidones</span>
-        </div>
-        <button class="entregado-btn ${done?'done':''}" onclick="toggleEntregado(${c.id})">
-          ${done ? '✓ Entregado' : 'Marcar entregado'}
-        </button>
-      </div>
-    </div>`;
-  }).join('');
-  renderStats();
-}
-
-function cambiarBidones(id, delta) {
-  const today = getToday();
-  const c = state.clientes.find(x => x.id === id);
-  if (!state.ruta[today][id]) state.ruta[today][id] = { bidones: c.bidHab, entregado: false };
-  state.ruta[today][id].bidones = Math.max(0, (state.ruta[today][id].bidones || 0) + delta);
-  saveState(); renderRuta();
-}
-
-function toggleEntregado(id) {
-  const today = getToday();
-  const c = state.clientes.find(x => x.id === id);
-  if (!state.ruta[today][id]) state.ruta[today][id] = { bidones: c.bidHab, entregado: false };
-  state.ruta[today][id].entregado = !state.ruta[today][id].entregado;
-  saveState(); renderRuta();
-}
-
-function cerrarReparto() {
-  const today = getToday();
-  const ruta = state.ruta[today] || {};
-  const entregados = state.clientes.filter(c => ruta[c.id]?.entregado);
-  if (!entregados.length) { alert('No hay entregas marcadas todavía.'); return; }
-  if (!confirm('¿Cerrar el reparto de hoy y guardarlo en el historial?')) return;
-  const resumen = state.clientes.map(c => ({ nombre: c.nombre, bidones: ruta[c.id]?.bidones || 0, entregado: ruta[c.id]?.entregado || false }));
-  state.historial.unshift({ fecha: today, entregas: resumen });
-  state.historial = state.historial.slice(0, 60);
-  delete state.ruta[today];
-  saveState(); initRuta(); renderRuta(); renderHistorial();
-  alert('¡Reparto cerrado! Guardado en el historial.');
-}
-
-function renderClientes() {
-  const sorted = [...state.clientes].sort((a,b) => a.orden - b.orden);
-  if (!sorted.length) {
-    document.getElementById('clientes-list').innerHTML = '<div class="empty">No hay clientes todavía.</div>';
-    return;
-  }
-  document.getElementById('clientes-list').innerHTML = sorted.map(c => `
-    <div class="client-card">
-      <div class="client-info">
-        <div class="client-name">${c.nombre}</div>
-        <div style="font-size:13px;color:#666;margin-top:3px;">📍 ${c.dir}</div>
-        ${c.tel ? `<div style="font-size:13px;color:#666;margin-top:2px;">📞 ${c.tel}</div>` : ''}
-        <div>
-          <span class="tag tag-blue">💧 ${c.bidHab} bidones</span>
-          <span class="tag tag-gray">Parada ${c.orden}</span>
-        </div>
-      </div>
-      <button class="delete-btn" onclick="eliminarCliente(${c.id})">🗑</button>
-    </div>
-  `).join('');
-}
-
-function agregarCliente() {
-  const nombre = document.getElementById('inp-nombre').value.trim();
-  const dir = document.getElementById('inp-dir').value.trim();
-  const tel = document.getElementById('inp-tel').value.trim();
-  const bid = parseInt(document.getElementById('inp-bid').value) || 1;
-  const orden = parseInt(document.getElementById('inp-orden').value) || (state.clientes.length + 1);
-  if (!nombre || !dir) { alert('Nombre y dirección son obligatorios.'); return; }
-  const c = { id: state.nextId++, nombre, dir, tel, bidHab: bid, orden };
-  state.clientes.push(c);
-  const today = getToday();
-  if (!state.ruta[today]) state.ruta[today] = {};
-  state.ruta[today][c.id] = { bidones: bid, entregado: false };
-  saveState();
-  document.getElementById('inp-nombre').value = '';
-  document.getElementById('inp-dir').value = '';
-  document.getElementById('inp-tel').value = '';
-  document.getElementById('inp-bid').value = '';
-  document.getElementById('inp-orden').value = '';
-  renderClientes(); renderRuta();
-}
-
-function eliminarCliente(id) {
-  if (!confirm('¿Eliminar este cliente?')) return;
-  state.clientes = state.clientes.filter(c => c.id !== id);
-  saveState(); renderClientes(); renderRuta();
-}
-
-function renderHistorial() {
-  if (!state.historial.length) {
-    document.getElementById('hist-list').innerHTML = '<div class="empty">Todavía no hay repartos cerrados.</div>';
-    return;
-  }
-  document.getElementById('hist-list').innerHTML = state.historial.map((h, idx) => {
-    const totalBid = h.entregas.reduce((s,e) => s + e.bidones, 0);
-    const entregados = h.entregas.filter(e => e.entregado).length;
-    return `<div class="hist-day">
-      <div class="hist-day-header" onclick="toggleHist(${idx})">
-        <div>
-          <div class="hist-day-title">${formatDate(h.fecha)}</div>
-          <div style="font-size:12px;color:#888;margin-top:2px;">${entregados} clientes · ${totalBid} bidones</div>
-        </div>
-        <i class="ti ti-chevron-down" id="hist-arrow-${idx}" style="color:#aaa;transition:transform 0.2s;"></i>
-      </div>
-      <div id="hist-body-${idx}" style="display:none;">
-        <div class="hist-day-body">
-          ${h.entregas.map(e => `
-            <div class="hist-row">
-              <span>${e.nombre}</span>
-              ${e.entregado ? `<span class="badge-done">✓ ${e.bidones} bid.</span>` : '<span class="badge-no">No entregado</span>'}
-            </div>
-          `).join('')}
-        </div>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function toggleHist(idx) {
-  const body = document.getElementById('hist-body-'+idx);
-  const arrow = document.getElementById('hist-arrow-'+idx);
-  const open = body.style.display !== 'none';
-  body.style.display = open ? 'none' : 'block';
-  arrow.style.transform = open ? '' : 'rotate(180deg)';
-}
-
-function showTab(tab, btn) {
-  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.getElementById('sec-'+tab).classList.add('active');
-  btn.classList.add('active');
-}
-
-const dias = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
-const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-const hoy = new Date();
-document.getElementById('fecha-hoy').textContent = `${dias[hoy.getDay()]} ${hoy.getDate()} de ${meses[hoy.getMonth()]}`;
-
-loadState(); initRuta(); renderRuta(); renderClientes(); renderHistorial();
-</script>
+  <script src="app.js"></script>
 </body>
 </html>
