@@ -23,8 +23,7 @@ function loadState() {
     if (s) {
       const saved = JSON.parse(s);
       state = {
-        ...state,
-        ...saved,
+        ...state, ...saved,
         zonas: saved.zonas || state.zonas,
         clientes: saved.clientes || state.clientes,
         historial: saved.historial || state.historial,
@@ -42,7 +41,7 @@ function saveState() {
 
 function getToday() { return new Date().toISOString().slice(0, 10); }
 function formatDate(d) { const [y,m,day] = d.split('-'); return `${day}/${m}/${y}`; }
-function initials(nombre) { return nombre.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase(); }
+function initials(n) { return n.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase(); }
 function getZonaHoy() { return state.ruta[getToday()]?.zona || null; }
 function clientesDeZona(zona) { return state.clientes.filter(c => c.zona === zona); }
 function formatPeso(n) { return '$' + Math.round(n).toLocaleString('es-AR'); }
@@ -58,8 +57,8 @@ function actualizarHistorialHoy() {
   const entregas = state.ruta[today]?.entregas || {};
   const clientesZona = clientesDeZona(zonaHoy);
   const entregados = clientesZona.filter(c => entregas[c.id]?.entregado);
+
   if (!entregados.length) {
-    // Eliminar entrada de hoy si existe y no hay nada entregado
     state.historial = state.historial.filter(h => h.fecha !== today || h.zona !== zonaHoy);
     saveState(); renderHistorial(); return;
   }
@@ -68,17 +67,14 @@ function actualizarHistorialHoy() {
     nombre: c.nombre,
     bid5: entregas[c.id]?.bid5 || 0,
     bid10: entregas[c.id]?.bid10 || 0,
-    entregado: entregas[c.id]?.entregado || false
+    entregado: entregas[c.id]?.entregado || false,
+    pago: entregas[c.id]?.pago || null
   }));
 
-  // Actualizar o insertar entrada de hoy
   const idx = state.historial.findIndex(h => h.fecha === today && h.zona === zonaHoy);
   const entrada = { fecha: today, zona: zonaHoy, entregas: resumen, enCurso: true };
-  if (idx >= 0) {
-    state.historial[idx] = entrada;
-  } else {
-    state.historial.unshift(entrada);
-  }
+  if (idx >= 0) { state.historial[idx] = entrada; }
+  else { state.historial.unshift(entrada); }
   state.historial = state.historial.slice(0, 60);
   saveState();
   renderHistorial();
@@ -93,28 +89,29 @@ function exportarResumen() {
 
   if (!entregados.length) { alert('No hay entregas realizadas hoy.'); return; }
 
-  let texto = `TEXALAR REPARTO — ${formatDate(today)}\n`;
-  texto += `Zona: ${zonaHoy}\n`;
-  texto += `${'─'.repeat(30)}\n`;
+  let texto = `TEXALAR REPARTO — ${formatDate(today)}\nZona: ${zonaHoy}\n${'─'.repeat(30)}\n`;
+  let totalEfectivo = 0, totalTransferencia = 0;
+
   entregados.forEach(c => {
     const e = entregas[c.id];
     const total = calcularTotal(e.bid5||0, e.bid10||0);
-    texto += `• ${c.nombre}\n`;
+    const pago = e.pago === 'transferencia' ? '🔵 Transferencia' : '💵 Efectivo';
+    texto += `• ${c.nombre} (${pago})\n`;
     if (e.bid5 > 0) texto += `  ${e.bid5} bidón/es 5lts\n`;
     if (e.bid10 > 0) texto += `  ${e.bid10} bidón/es 10lts\n`;
     texto += `  Subtotal: ${formatPeso(total)}\n`;
+    if (e.pago === 'transferencia') totalTransferencia += total;
+    else totalEfectivo += total;
   });
-  texto += `${'─'.repeat(30)}\n`;
-  const totalDia = entregados.reduce((s,c) => s + calcularTotal(entregas[c.id]?.bid5||0, entregas[c.id]?.bid10||0), 0);
-  texto += `TOTAL: ${formatPeso(totalDia)}\n`;
 
-  // Copiar al portapapeles
+  texto += `${'─'.repeat(30)}\n`;
+  texto += `💵 Efectivo: ${formatPeso(totalEfectivo)}\n`;
+  texto += `🔵 Transferencia: ${formatPeso(totalTransferencia)}\n`;
+  texto += `TOTAL: ${formatPeso(totalEfectivo + totalTransferencia)}\n`;
+
   navigator.clipboard.writeText(texto).then(() => {
-    alert('¡Resumen copiado al portapapeles! Podés pegarlo en WhatsApp, notas, etc.');
-  }).catch(() => {
-    // Fallback: mostrar en prompt para copiar manualmente
-    prompt('Copiá este resumen:', texto);
-  });
+    alert('¡Resumen copiado al portapapeles!');
+  }).catch(() => { prompt('Copiá este resumen:', texto); });
 }
 
 // ─── Stats ───────────────────────────────────────────────────
@@ -124,14 +121,17 @@ function renderStats() {
   const zonaHoy = getZonaHoy();
   const entregas = state.ruta[today]?.entregas || {};
   const clientes = zonaHoy ? clientesDeZona(zonaHoy) : [];
-  const total = clientes.length;
-  const entregados = clientes.filter(c => entregas[c.id]?.entregado).length;
-  const totalPesos = clientes
-    .filter(c => entregas[c.id]?.entregado)
+  const entregados = clientes.filter(c => entregas[c.id]?.entregado);
+  const totalEfectivo = entregados
+    .filter(c => (entregas[c.id]?.pago || 'efectivo') === 'efectivo')
     .reduce((s,c) => s + calcularTotal(entregas[c.id]?.bid5||0, entregas[c.id]?.bid10||0), 0);
-  const pct = total ? Math.round((entregados/total)*100) : 0;
+  const totalTransferencia = entregados
+    .filter(c => entregas[c.id]?.pago === 'transferencia')
+    .reduce((s,c) => s + calcularTotal(entregas[c.id]?.bid5||0, entregas[c.id]?.bid10||0), 0);
+  const totalPesos = totalEfectivo + totalTransferencia;
+  const pct = clientes.length ? Math.round((entregados.length/clientes.length)*100) : 0;
 
-  document.getElementById('stat-clientes').textContent = `${entregados}/${total}`;
+  document.getElementById('stat-clientes').textContent = `${entregados.length}/${clientes.length}`;
   document.getElementById('prog-bar').style.width = pct + '%';
   document.getElementById('prog-pct').textContent = pct + '%';
 
@@ -146,8 +146,18 @@ function renderStats() {
     }
   }
 
-  const exportarBtn = document.getElementById('exportar-wrap');
-  if (exportarBtn) exportarBtn.style.display = entregados > 0 ? 'block' : 'none';
+  const desgEl = document.getElementById('stat-desglose');
+  if (desgEl) {
+    desgEl.innerHTML = `
+      <div class="desglose-item">💵 <span id="desg-efectivo">${formatPeso(totalEfectivo)}</span></div>
+      <div class="desglose-item">🔵 <span id="desg-transf">${formatPeso(totalTransferencia)}</span></div>`;
+    if (!totalVisible) {
+      desgEl.querySelectorAll('span').forEach(s => s.style.filter = 'blur(4px)');
+    }
+  }
+
+  const exportarWrap = document.getElementById('exportar-wrap');
+  if (exportarWrap) exportarWrap.style.display = entregados.length > 0 ? 'block' : 'none';
 }
 
 let totalVisible = true;
@@ -157,6 +167,9 @@ function toggleTotal() {
   const icon = document.getElementById('total-icon');
   if (amt) amt.style.filter = totalVisible ? 'none' : 'blur(4px)';
   if (icon) icon.className = totalVisible ? 'ti ti-eye' : 'ti ti-eye-off';
+  document.querySelectorAll('#stat-desglose span').forEach(s => {
+    s.style.filter = totalVisible ? 'none' : 'blur(4px)';
+  });
 }
 
 // ─── Selector de zona ────────────────────────────────────────
@@ -218,7 +231,7 @@ function initRuta(zona) {
   if (!state.ruta[today].entregas) state.ruta[today].entregas = {};
   clientesDeZona(zona).forEach(c => {
     if (!state.ruta[today].entregas[c.id]) {
-      state.ruta[today].entregas[c.id] = { bid5: 0, bid10: c.bidHab, entregado: false };
+      state.ruta[today].entregas[c.id] = { bid5: 0, bid10: c.bidHab, entregado: false, pago: null };
     }
   });
   saveState();
@@ -236,8 +249,7 @@ function renderRuta() {
   const clientes = clientesDeZona(zonaHoy).sort((a,b) => a.orden - b.orden);
 
   if (!clientes.length) {
-    document.getElementById('ruta-list').innerHTML =
-      `<div class="empty">No hay clientes en ${zonaHoy}.</div>`;
+    document.getElementById('ruta-list').innerHTML = `<div class="empty">No hay clientes en ${zonaHoy}.</div>`;
     renderStats(); return;
   }
 
@@ -247,9 +259,15 @@ function renderRuta() {
     : `<div class="pendientes-bar pendientes-ok">✅ Todos entregados</div>`;
 
   document.getElementById('ruta-list').innerHTML = pendientesHtml + clientes.map(c => {
-    const r = entregas[c.id] || { bid5: 0, bid10: c.bidHab, entregado: false };
+    const r = entregas[c.id] || { bid5: 0, bid10: c.bidHab, entregado: false, pago: null };
     const done = r.entregado;
     const total = calcularTotal(r.bid5, r.bid10);
+    const pagoLabel = r.pago === 'transferencia'
+      ? '<span class="pago-badge pago-transf">🔵 Transferencia</span>'
+      : r.pago === 'efectivo'
+        ? '<span class="pago-badge pago-efec">💵 Efectivo</span>'
+        : '';
+
     return `
       <div class="card ${done?'done':''}">
         <div class="card-top">
@@ -277,9 +295,17 @@ function renderRuta() {
             <span class="bid-precio">${formatPeso(PRECIO_10)}c/u</span>
           </div>
         </div>
+        ${!done ? `
+        <div class="pago-selector">
+          <span class="pago-label">Método de pago:</span>
+          <div class="pago-btns">
+            <button class="pago-btn ${r.pago==='efectivo'?'pago-btn-active':''}" onclick="setPago(${c.id},'efectivo')">💵 Efectivo</button>
+            <button class="pago-btn ${r.pago==='transferencia'?'pago-btn-active':''}" onclick="setPago(${c.id},'transferencia')">🔵 Transferencia</button>
+          </div>
+        </div>` : `<div style="margin-bottom:10px;">${pagoLabel}</div>`}
         <div class="card-bottom">
           <div class="subtotal">Subtotal: <strong>${formatPeso(total)}</strong></div>
-          <button class="mark-btn ${done?'done':''}" onclick="toggleEntregado(${c.id})">
+          <button class="mark-btn ${done?'done':''}" onclick="toggleEntregado(${c.id})" ${!done && !r.pago ? 'disabled title="Seleccioná un método de pago"' : ''}>
             ${done?'✓ Entregado':'Marcar entregado'}
           </button>
         </div>
@@ -289,11 +315,18 @@ function renderRuta() {
   renderStats();
 }
 
+function setPago(id, metodo) {
+  const today = getToday();
+  if (!state.ruta[today].entregas[id]) return;
+  state.ruta[today].entregas[id].pago = metodo;
+  saveState(); renderRuta();
+}
+
 function cambiarBidones(id, tipo, delta) {
   const today = getToday();
   const c = state.clientes.find(x => x.id === id);
   if (!state.ruta[today].entregas[id]) {
-    state.ruta[today].entregas[id] = { bid5: 0, bid10: c.bidHab, entregado: false };
+    state.ruta[today].entregas[id] = { bid5: 0, bid10: c.bidHab, entregado: false, pago: null };
   }
   state.ruta[today].entregas[id][tipo] = Math.max(0, (state.ruta[today].entregas[id][tipo]||0) + delta);
   saveState(); renderRuta();
@@ -303,12 +336,12 @@ function toggleEntregado(id) {
   const today = getToday();
   const c = state.clientes.find(x => x.id === id);
   if (!state.ruta[today].entregas[id]) {
-    state.ruta[today].entregas[id] = { bid5: 0, bid10: c.bidHab, entregado: false };
+    state.ruta[today].entregas[id] = { bid5: 0, bid10: c.bidHab, entregado: false, pago: null };
   }
-  state.ruta[today].entregas[id].entregado = !state.ruta[today].entregas[id].entregado;
-  saveState();
-  renderRuta();
-  actualizarHistorialHoy();
+  const e = state.ruta[today].entregas[id];
+  if (!e.entregado && !e.pago) { alert('Seleccioná un método de pago antes de marcar como entregado.'); return; }
+  e.entregado = !e.entregado;
+  saveState(); renderRuta(); actualizarHistorialHoy();
 }
 
 // ─── Zonas ───────────────────────────────────────────────────
@@ -348,8 +381,7 @@ function eliminarZona(zona) {
   if (cant > 0) { alert(`No se puede eliminar "${zona}" porque tiene ${cant} cliente${cant!==1?'s':''} asignado${cant!==1?'s':''}.`); return; }
   if (!confirm(`¿Eliminar la zona "${zona}"?`)) return;
   state.zonas = state.zonas.filter(z => z !== zona);
-  saveState();
-  renderZonas(); renderZonaSelect(); renderOpcionesZona();
+  saveState(); renderZonas(); renderZonaSelect(); renderOpcionesZona();
 }
 
 function renderZonaSelect() {
@@ -391,14 +423,11 @@ function agregarCliente() {
   const zona = document.getElementById('inp-zona-cliente').value;
   const bid = parseInt(document.getElementById('inp-bid').value) || 1;
   const orden = parseInt(document.getElementById('inp-orden').value) || (state.clientes.length + 1);
-
   if (!nombre || !dir) { alert('Nombre y dirección son obligatorios.'); return; }
   if (!zona) { alert('Seleccioná una zona para el cliente.'); return; }
-
   const c = { id: state.nextId++, nombre, dir, tel, bidHab: bid, orden, zona };
   state.clientes.push(c);
   saveState();
-
   ['inp-nombre','inp-dir','inp-tel','inp-bid','inp-orden'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('inp-zona-cliente').value = '';
   renderClientes(); renderRuta(); renderZonas();
@@ -407,8 +436,7 @@ function agregarCliente() {
 function eliminarCliente(id) {
   if (!confirm('¿Eliminar este cliente?')) return;
   state.clientes = state.clientes.filter(c => c.id !== id);
-  saveState();
-  renderClientes(); renderRuta(); renderZonas();
+  saveState(); renderClientes(); renderRuta(); renderZonas();
 }
 
 // ─── Historial ───────────────────────────────────────────────
@@ -419,7 +447,6 @@ function renderHistorial() {
     return;
   }
 
-  // Agrupar por fecha
   const porFecha = {};
   state.historial.forEach(h => {
     if (!porFecha[h.fecha]) porFecha[h.fecha] = [];
@@ -430,9 +457,12 @@ function renderHistorial() {
     .sort((a,b) => b.localeCompare(a))
     .map(fecha => {
       const zonas = porFecha[fecha];
-      const totalDia = zonas.reduce((s,z) => {
-        return s + z.entregas.filter(e=>e.entregado).reduce((ss,e) => ss + calcularTotal(e.bid5||0,e.bid10||0), 0);
-      }, 0);
+      const totalDia = zonas.reduce((s,z) =>
+        s + z.entregas.filter(e=>e.entregado).reduce((ss,e) => ss + calcularTotal(e.bid5||0,e.bid10||0), 0), 0);
+      const totalEfDia = zonas.reduce((s,z) =>
+        s + z.entregas.filter(e=>e.entregado && (e.pago||'efectivo')==='efectivo').reduce((ss,e) => ss + calcularTotal(e.bid5||0,e.bid10||0), 0), 0);
+      const totalTrDia = zonas.reduce((s,z) =>
+        s + z.entregas.filter(e=>e.entregado && e.pago==='transferencia').reduce((ss,e) => ss + calcularTotal(e.bid5||0,e.bid10||0), 0), 0);
       const totalClientes = zonas.reduce((s,z) => s + z.entregas.filter(e=>e.entregado).length, 0);
 
       return `
@@ -441,18 +471,24 @@ function renderHistorial() {
             <div>
               <div class="hist-fecha-title">${formatDate(fecha)}</div>
               <div class="hist-fecha-sub">${totalClientes} entregas · ${formatPeso(totalDia)}</div>
+              <div class="hist-fecha-desglose">
+                <span class="desglose-ef">💵 ${formatPeso(totalEfDia)}</span>
+                <span class="desglose-tr">🔵 ${formatPeso(totalTrDia)}</span>
+              </div>
             </div>
           </div>
           ${zonas.map((h, idx) => {
             const entregados = h.entregas.filter(e=>e.entregado);
             const totalZona = entregados.reduce((s,e) => s + calcularTotal(e.bid5||0,e.bid10||0), 0);
+            const efZona = entregados.filter(e=>(e.pago||'efectivo')==='efectivo').reduce((s,e) => s + calcularTotal(e.bid5||0,e.bid10||0), 0);
+            const trZona = entregados.filter(e=>e.pago==='transferencia').reduce((s,e) => s + calcularTotal(e.bid5||0,e.bid10||0), 0);
             const uid = fecha.replace(/-/g,'') + idx;
             return `
               <div class="hist-zona-card">
                 <div class="hist-head" onclick="toggleHist('${uid}')">
-                  <div style="display:flex;align-items:center;gap:8px;">
+                  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                     <span class="tag tag-blue">📍 ${h.zona}</span>
-                    ${h.enCurso ? '<span class="tag-en-curso">En curso</span>' : ''}
+                    ${h.enCurso?'<span class="tag-en-curso">En curso</span>':''}
                   </div>
                   <div style="display:flex;align-items:center;gap:10px;">
                     <span class="hist-zona-total">${formatPeso(totalZona)}</span>
@@ -461,16 +497,28 @@ function renderHistorial() {
                 </div>
                 <div id="hist-body-${uid}" class="hist-body" style="display:none;">
                   ${entregados.map(e => {
-                    const subtotal = calcularTotal(e.bid5||0, e.bid10||0);
+                    const subtotal = calcularTotal(e.bid5||0,e.bid10||0);
+                    const pagoIcon = e.pago==='transferencia' ? '🔵' : '💵';
                     return `
                       <div class="hist-row">
-                        <span>${e.nombre}</span>
+                        <div>
+                          <div>${e.nombre}</div>
+                          <div style="font-size:11px;color:#888;margin-top:2px;">${pagoIcon} ${e.pago==='transferencia'?'Transferencia':'Efectivo'}</div>
+                        </div>
                         <div class="hist-row-right">
                           <span class="hist-bid-detail">${e.bid5>0?e.bid5+'×5lts ':''} ${e.bid10>0?e.bid10+'×10lts':''}</span>
                           <span class="badge-ok">${formatPeso(subtotal)}</span>
                         </div>
                       </div>`;
                   }).join('')}
+                  <div class="hist-row" style="padding:8px 0 4px;">
+                    <span style="font-size:12px;color:#888;">💵 Efectivo</span>
+                    <span style="font-size:12px;color:#555;">${formatPeso(efZona)}</span>
+                  </div>
+                  <div class="hist-row" style="padding:4px 0 8px;">
+                    <span style="font-size:12px;color:#888;">🔵 Transferencia</span>
+                    <span style="font-size:12px;color:#555;">${formatPeso(trZona)}</span>
+                  </div>
                   <div class="hist-row hist-row-total">
                     <strong>Total zona</strong>
                     <strong>${formatPeso(totalZona)}</strong>
@@ -501,16 +549,12 @@ function showTab(tab, btn) {
   if (exportarWrap) exportarWrap.style.display = tab === 'ruta' && getZonaHoy() ? 'block' : 'none';
 }
 
-// ─── Fecha ───────────────────────────────────────────────────
-
 function renderFecha() {
   const dias = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
   const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
   const hoy = new Date();
   document.getElementById('fecha-hoy').textContent = `${dias[hoy.getDay()]} ${hoy.getDate()} de ${meses[hoy.getMonth()]}`;
 }
-
-// ─── Arranque ────────────────────────────────────────────────
 
 loadState();
 renderFecha();
