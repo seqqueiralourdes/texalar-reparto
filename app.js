@@ -126,13 +126,14 @@ async function cargarDatosEmpleado() {
     state.zonas = zonas.map(z => ({ id: z.id, nombre: z.nombre }));
 
     // Cargar clientes del empleado
-    const clientes = await supa(`clientes?usuario_id=eq.${currentUser.id}&select=id,nombre,direccion,telefono,bidones_habituales,orden,zona_id&order=orden`);
+    const clientes = await supa(`clientes?usuario_id=eq.${currentUser.id}&select=id,nombre,direccion,telefono,bidones_habituales,bidones_habituales_10,orden,zona_id&order=orden`);
     state.clientes = clientes.map(c => ({
       id: c.id,
       nombre: c.nombre,
       dir: c.direccion,
       tel: c.telefono || '',
       bidHab: c.bidones_habituales || 1,
+      bidHab10: c.bidones_habituales_10 || 0,
       orden: c.orden || 1,
       zonaId: c.zona_id
     }));
