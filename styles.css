@@ -887,3 +887,17 @@ body {
   padding: 2px 8px;
   border-radius: 20px;
 }
+
+/* ── Teléfono clickeable ── */
+.client-tel-link {
+  display: inline-block;
+  color: #0C447C;
+  text-decoration: none;
+  font-size: 12px;
+  margin-top: 2px;
+  font-weight: 500;
+}
+
+.client-tel-link:active {
+  text-decoration: underline;
+}
