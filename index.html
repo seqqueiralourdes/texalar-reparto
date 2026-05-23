@@ -5,162 +5,241 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#0C447C">
   <title>Texalar Reparto</title>
-  <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="app">
 
-    <!-- Header -->
-    <header class="header">
-      <div class="header-top">
-        <div class="header-logo">
-          <div class="header-logo-icon">💧</div>
-          <span class="header-logo-name">Texalar</span>
-        </div>
-        <span class="header-date" id="fecha-hoy"></span>
+  <!-- Pantalla de login -->
+  <div id="screen-login" class="screen active">
+    <div class="login-wrap">
+      <div class="login-logo">
+        <div class="login-logo-icon">💧</div>
+        <div class="login-logo-name">Texalar</div>
+        <div class="login-logo-sub">Gestión de reparto</div>
       </div>
-      <div class="header-stats">
-        <div class="hstat">
-          <div class="hstat-label">Clientes visitados</div>
-          <div class="hstat-val" id="stat-clientes">0/0</div>
+      <div class="form-card">
+        <div class="form-group">
+          <label class="form-label">Nombre de usuario</label>
+          <input class="form-input" type="text" id="login-nombre" placeholder="Ej: Juan">
         </div>
-        <div class="hstat">
-          <div class="hstat-label">Total recaudado</div>
-          <div class="hstat-val" id="stat-total">$0</div>
-          <div class="hstat-desglose" id="stat-desglose"></div>
+        <div class="form-group">
+          <label class="form-label">Contraseña</label>
+          <input class="form-input" type="password" id="login-clave" placeholder="••••••">
         </div>
-        <div class="hstat hstat-full">
-          <div class="hstat-label">Recolectado hoy</div>
-          <div class="hstat-desglose" id="stat-devoluciones"></div>
-        </div>
-      </div>
-    </header>
-
-    <!-- Barra de progreso -->
-    <div class="progress-wrap">
-      <div class="progress-top">
-        <span>Progreso del reparto</span>
-        <span id="prog-pct">0%</span>
-      </div>
-      <div class="progress-bar-bg">
-        <div class="progress-bar" id="prog-bar" style="width:0%"></div>
+        <div id="login-error" class="login-error" style="display:none;">Usuario o contraseña incorrectos.</div>
+        <button class="add-btn" onclick="login()">Ingresar</button>
       </div>
     </div>
+  </div>
 
-    <!-- Navegación -->
-    <nav class="nav">
-      <button class="nav-item active" onclick="showTab('ruta', this)">
-        <span class="nav-icon">🗺️</span>
-        Ruta
-      </button>
-      <button class="nav-item" onclick="showTab('clientes', this)">
-        <span class="nav-icon">👤</span>
-        Clientes
-      </button>
-      <button class="nav-item" onclick="showTab('zonas', this)">
-        <span class="nav-icon">📍</span>
-        Zonas
-      </button>
-      <button class="nav-item" onclick="showTab('historial', this)">
-        <span class="nav-icon">📋</span>
-        Historial
-      </button>
-      <button class="nav-item" onclick="showTab('pendientes', this)">
-        <span class="nav-icon">⏳</span>
-        Cobros
-      </button>
-    </nav>
+  <!-- App empleado -->
+  <div id="screen-app" class="screen">
+    <div class="app">
 
-    <!-- Sección: Ruta -->
-    <section id="sec-ruta" class="section active">
-      <div id="zona-selector">
-        <div class="sec-title">¿Qué zona hacés hoy?</div>
-        <div id="zonas-opciones"></div>
-      </div>
-      <div id="zona-activa" style="display:none;">
-        <div class="zona-activa-bar">
-          <div class="zona-activa-info">
-            <span class="zona-activa-label">Zona de hoy</span>
-            <span class="zona-activa-nombre" id="zona-activa-nombre"></span>
+      <!-- Header -->
+      <header class="header">
+        <div class="header-top">
+          <div class="header-logo">
+            <div class="header-logo-icon">💧</div>
+            <span class="header-logo-name">Texalar</span>
           </div>
-          <button class="zona-cambiar-btn" onclick="cambiarZona()">Cambiar</button>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span class="header-date" id="fecha-hoy"></span>
+            <button class="logout-btn" onclick="logout()" title="Cerrar sesión">⎋</button>
+          </div>
+        </div>
+        <div class="header-user" id="header-user"></div>
+        <div class="header-stats">
+          <div class="hstat">
+            <div class="hstat-label">Clientes visitados</div>
+            <div class="hstat-val" id="stat-clientes">0/0</div>
+          </div>
+          <div class="hstat">
+            <div class="hstat-label">Total recaudado</div>
+            <div class="hstat-val" id="stat-total">$0</div>
+            <div class="hstat-desglose" id="stat-desglose"></div>
+          </div>
+          <div class="hstat hstat-full">
+            <div class="hstat-label">Recolectado hoy</div>
+            <div class="hstat-desglose" id="stat-devoluciones"></div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Barra de progreso -->
+      <div class="progress-wrap">
+        <div class="progress-top">
+          <span>Progreso del reparto</span>
+          <span id="prog-pct">0%</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar" id="prog-bar" style="width:0%"></div>
         </div>
       </div>
-      <div class="sec-title" style="margin-top:12px;">Ruta de hoy</div>
-      <div id="ruta-list"></div>
-    </section>
 
-    <!-- Botón exportar resumen -->
-    <div class="exportar-wrap" id="exportar-wrap" style="display:none;">
-      <button class="exportar-btn" onclick="exportarResumen()">📋 Exportar resumen del día</button>
+      <!-- Navegación -->
+      <nav class="nav">
+        <button class="nav-item active" onclick="showTab('ruta', this)">
+          <span class="nav-icon">🗺️</span>
+          Ruta
+        </button>
+        <button class="nav-item" onclick="showTab('clientes', this)">
+          <span class="nav-icon">👤</span>
+          Clientes
+        </button>
+        <button class="nav-item" onclick="showTab('zonas', this)">
+          <span class="nav-icon">📍</span>
+          Zonas
+        </button>
+        <button class="nav-item" onclick="showTab('historial', this)">
+          <span class="nav-icon">📋</span>
+          Historial
+        </button>
+        <button class="nav-item" onclick="showTab('pendientes', this)">
+          <span class="nav-icon">⏳</span>
+          Cobros
+        </button>
+      </nav>
+
+      <!-- Sección: Ruta -->
+      <section id="sec-ruta" class="section active">
+        <div id="zona-selector">
+          <div class="sec-title">¿Qué zona hacés hoy?</div>
+          <div id="zonas-opciones"></div>
+        </div>
+        <div id="zona-activa" style="display:none;">
+          <div class="zona-activa-bar">
+            <div class="zona-activa-info">
+              <span class="zona-activa-label">Zona de hoy</span>
+              <span class="zona-activa-nombre" id="zona-activa-nombre"></span>
+            </div>
+            <button class="zona-cambiar-btn" onclick="cambiarZona()">Cambiar</button>
+          </div>
+        </div>
+        <div class="sec-title" style="margin-top:12px;">Ruta de hoy</div>
+        <div id="ruta-list"></div>
+      </section>
+
+      <!-- Botón exportar -->
+      <div class="exportar-wrap" id="exportar-wrap" style="display:none;">
+        <button class="exportar-btn" onclick="exportarResumen()">📋 Exportar resumen del día</button>
+      </div>
+
+      <!-- Sección: Clientes -->
+      <section id="sec-clientes" class="section">
+        <div class="form-card">
+          <div class="form-title">Agregar cliente</div>
+          <div class="form-group">
+            <label class="form-label">Nombre completo</label>
+            <input class="form-input" type="text" id="inp-nombre" placeholder="Ej: Juan García">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Dirección</label>
+            <input class="form-input" type="text" id="inp-dir" placeholder="Ej: Av. San Martín 1234">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Teléfono</label>
+            <input class="form-input" type="tel" id="inp-tel" placeholder="Ej: 11 1234-5678">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Zona</label>
+            <select class="form-input" id="inp-zona-cliente">
+              <option value="">Seleccioná una zona</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Bidones habituales</label>
+              <input class="form-input" type="number" id="inp-bid" placeholder="2" min="1" max="50">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Orden en ruta</label>
+              <input class="form-input" type="number" id="inp-orden" placeholder="Ej: 3" min="1">
+            </div>
+          </div>
+          <button class="add-btn" onclick="agregarCliente()">+ Agregar cliente</button>
+        </div>
+        <div class="sec-title">Clientes activos</div>
+        <div id="clientes-list"></div>
+      </section>
+
+      <!-- Sección: Zonas -->
+      <section id="sec-zonas" class="section">
+        <div class="form-card">
+          <div class="form-title">Agregar zona</div>
+          <div class="form-group">
+            <label class="form-label">Nombre de la zona</label>
+            <input class="form-input" type="text" id="inp-zona" placeholder="Ej: Zona Norte">
+          </div>
+          <button class="add-btn" onclick="agregarZona()">+ Agregar zona</button>
+        </div>
+        <div class="sec-title">Zonas activas</div>
+        <div id="zonas-list"></div>
+      </section>
+
+      <!-- Sección: Historial -->
+      <section id="sec-historial" class="section">
+        <div class="sec-title">Repartos anteriores</div>
+        <div id="hist-list"></div>
+      </section>
+
+      <!-- Sección: Cobros pendientes -->
+      <section id="sec-pendientes" class="section">
+        <div class="sec-title">Cobros pendientes</div>
+        <div id="pendientes-list"></div>
+      </section>
+
     </div>
+  </div>
 
-    <!-- Sección: Clientes -->
-    <section id="sec-clientes" class="section">
-      <div class="form-card">
-        <div class="form-title">Agregar cliente</div>
-        <div class="form-group">
-          <label class="form-label" for="inp-nombre">Nombre completo</label>
-          <input class="form-input" type="text" id="inp-nombre" placeholder="Ej: Juan García">
+  <!-- Panel admin -->
+  <div id="screen-admin" class="screen">
+    <div class="app">
+      <header class="header">
+        <div class="header-top">
+          <div class="header-logo">
+            <div class="header-logo-icon">💧</div>
+            <span class="header-logo-name">Texalar Admin</span>
+          </div>
+          <button class="logout-btn" onclick="logout()">⎋</button>
         </div>
-        <div class="form-group">
-          <label class="form-label" for="inp-dir">Dirección</label>
-          <input class="form-input" type="text" id="inp-dir" placeholder="Ej: Av. San Martín 1234">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="inp-tel">Teléfono</label>
-          <input class="form-input" type="tel" id="inp-tel" placeholder="Ej: 11 1234-5678">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="inp-zona-cliente">Zona</label>
-          <select class="form-input" id="inp-zona-cliente">
-            <option value="">Seleccioná una zona</option>
-          </select>
-        </div>
-        <div class="form-row">
+      </header>
+      <nav class="nav">
+        <button class="nav-item active" onclick="showAdminTab('resumen', this)">
+          <span class="nav-icon">📊</span>
+          Resumen
+        </button>
+        <button class="nav-item" onclick="showAdminTab('empleados', this)">
+          <span class="nav-icon">👥</span>
+          Empleados
+        </button>
+      </nav>
+      <section id="admin-sec-resumen" class="section active">
+        <div class="sec-title">Resumen del día</div>
+        <div id="admin-resumen"></div>
+      </section>
+      <section id="admin-sec-empleados" class="section">
+        <div class="form-card">
+          <div class="form-title">Agregar empleado</div>
           <div class="form-group">
-            <label class="form-label" for="inp-bid">Bidones habituales</label>
-            <input class="form-input" type="number" id="inp-bid" placeholder="2" min="1" max="50">
+            <label class="form-label">Nombre</label>
+            <input class="form-input" type="text" id="admin-emp-nombre" placeholder="Ej: Juan">
           </div>
           <div class="form-group">
-            <label class="form-label" for="inp-orden">Orden en ruta</label>
-            <input class="form-input" type="number" id="inp-orden" placeholder="Ej: 3" min="1">
+            <label class="form-label">Contraseña</label>
+            <input class="form-input" type="text" id="admin-emp-clave" placeholder="Ej: juan123">
           </div>
+          <button class="add-btn" onclick="adminAgregarEmpleado()">+ Agregar empleado</button>
         </div>
-        <button class="add-btn" onclick="agregarCliente()">+ Agregar cliente</button>
-      </div>
-      <div class="sec-title">Clientes activos</div>
-      <div id="clientes-list"></div>
-    </section>
+        <div class="sec-title">Empleados activos</div>
+        <div id="admin-empleados-list"></div>
+      </section>
+    </div>
+  </div>
 
-    <!-- Sección: Zonas -->
-    <section id="sec-zonas" class="section">
-      <div class="form-card">
-        <div class="form-title">Agregar zona</div>
-        <div class="form-group">
-          <label class="form-label" for="inp-zona">Nombre de la zona</label>
-          <input class="form-input" type="text" id="inp-zona" placeholder="Ej: Zona Norte">
-        </div>
-        <button class="add-btn" onclick="agregarZona()">+ Agregar zona</button>
-      </div>
-      <div class="sec-title">Zonas activas</div>
-      <div id="zonas-list"></div>
-    </section>
-
-    <!-- Sección: Historial -->
-    <section id="sec-historial" class="section">
-      <div class="sec-title">Repartos anteriores</div>
-      <div id="hist-list"></div>
-    </section>
-
-    <!-- Sección: Cobros pendientes -->
-    <section id="sec-pendientes" class="section">
-      <div class="sec-title">Cobros pendientes</div>
-      <div id="pendientes-list"></div>
-    </section>
-
+  <div id="loading" class="loading-overlay" style="display:none;">
+    <div class="loading-spinner">💧</div>
   </div>
 
   <script src="app.js"></script>
