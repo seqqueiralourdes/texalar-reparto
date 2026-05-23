@@ -519,20 +519,24 @@ function eliminarCliente(id) {
 }
 
 // ─── Historial ────────────────────────────────────────────────
-function renderHistorial() {
+const botonLunes = esLunes()
+    ? `<button class="limpiar-btn" onclick="limpiarHistorial()">🗑 Limpiar historial de la semana</button>`
+    : '';
+
   if (!state.historial.length) {
-    document.getElementById('hist-list').innerHTML = '<div class="empty">Todavía no hay entregas realizadas.</div>';
+    document.getElementById('hist-list').innerHTML = botonLunes + '<div class="empty">Todavía no hay entregas realizadas.</div>';
     return;
   }
 
+ const semana = filtrarHistorialSemana();
   const porFecha = {};
-  state.historial.forEach(h => {
+  semana.forEach(h => {
     if (!porFecha[h.fecha]) porFecha[h.fecha] = [];
     porFecha[h.fecha].push(h);
   });
 
-  document.getElementById('hist-list').innerHTML = Object.keys(porFecha)
-    .sort((a,b) => b.localeCompare(a))
+const htmlFechas = Object.keys(porFecha)
+.sort((a,b) => b.localeCompare(a))
     .map(fecha => {
       const zonas = porFecha[fecha];
       const totalDia      = zonas.reduce((s,z) => s + z.entregas.filter(e=>e.entregado).reduce((ss,e) => ss + calcularTotal(e.bid5||0,e.bid10||0), 0), 0);
@@ -585,8 +589,10 @@ function renderHistorial() {
                           <span class="badge-ok">${formatPeso(subtotal)}</span>
                         </div>
                       </div>`;
-                  }).join('')}
-                  <div class="hist-row" style="padding:8px 0 4px;font-size:12px;">
+                    }).join('');
+
+  document.getElementById('hist-list').innerHTML = botonLunes + htmlFechas;
+                    <div class="hist-row" style="padding:8px 0 4px;font-size:12px;">
                     <span style="color:#888;">💵 Efectivo</span>
                     <span style="color:#555;">${formatPeso(efZona)}</span>
                   </div>
@@ -687,6 +693,31 @@ function marcarCobrado(hIdx, eIdx) {
   if (!confirm('¿Marcar este cobro como recibido?')) return;
   state.historial[hIdx].entregas[eIdx].pago = 'efectivo';
   saveState(); renderCobrosPendientes(); renderHistorial();
+}
+
+// ─── Gestión de historial semanal ─────────────────────────────
+function esLunes() {
+  return new Date().getDay() === 1;
+}
+
+function limpiarHistorial() {
+  const clave = prompt('Ingresá la contraseña para limpiar el historial:');
+  if (clave === null) return;
+  if (clave !== '1234') { alert('Contraseña incorrecta.'); return; }
+  if (!confirm('¿Limpiar todo el historial de la semana?')) return;
+  state.historial = [];
+  saveState();
+  renderHistorial();
+  alert('Historial limpiado correctamente.');
+}
+
+function filtrarHistorialSemana() {
+  const hoy = new Date();
+  const lunes = new Date(hoy);
+  lunes.setDate(hoy.getDate() - ((hoy.getDay() + 6) % 7));
+  lunes.setHours(0,0,0,0);
+  const lunesFecha = lunes.toISOString().slice(0,10);
+  return state.historial.filter(h => h.fecha >= lunesFecha);
 }
 
 // ─── Arranque ─────────────────────────────────────────────────
