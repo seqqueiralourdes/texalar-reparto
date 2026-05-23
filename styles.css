@@ -791,3 +791,99 @@ body {
 .total-toggle:hover {
   color: white;
 }
+
+/* ── Selector de pago ── */
+.pago-selector {
+  margin-bottom: 12px;
+}
+
+.pago-label {
+  font-size: 12px;
+  color: #888;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.pago-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.pago-btn {
+  flex: 1;
+  padding: 9px 8px;
+  border-radius: 10px;
+  border: 1.5px solid #e4e8ed;
+  background: #fafafa;
+  font-size: 13px;
+  font-weight: 500;
+  color: #555;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.pago-btn:active {
+  background: #E6F1FB;
+}
+
+.pago-btn-active {
+  border-color: #0C447C;
+  background: #E6F1FB;
+  color: #0C447C;
+  font-weight: 600;
+}
+
+.pago-badge {
+  display: inline-block;
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+
+.pago-efec {
+  background: #F0F7E6;
+  color: #27500A;
+}
+
+.pago-transf {
+  background: #E6F1FB;
+  color: #0C447C;
+}
+
+/* ── Desglose en header ── */
+.hstat-desglose {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.desglose-item {
+  font-size: 11px;
+  color: rgba(255,255,255,0.7);
+}
+
+/* ── Desglose en historial ── */
+.hist-fecha-desglose {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.desglose-ef {
+  font-size: 12px;
+  color: #555;
+  background: #F0F7E6;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+.desglose-tr {
+  font-size: 12px;
+  color: #0C447C;
+  background: #E6F1FB;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
