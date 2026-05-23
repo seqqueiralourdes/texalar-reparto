@@ -404,7 +404,7 @@ function renderClientes() {
       <div class="client-info">
         <div class="client-card-name">${c.nombre}</div>
         <div class="client-card-detail">📍 ${c.dir}</div>
-        ${c.tel?`<div class="client-card-detail">📞 ${c.tel}</div>`:''}
+       ${c.tel?`<a class="client-card-detail client-tel-link" href="tel:${c.tel.replace(/\s/g,'')}" >📞 ${c.tel}</a>`:''}
         <div class="client-tags">
           <span class="tag tag-blue">💧 ${c.bidHab} bidones</span>
           <span class="tag tag-gray">${c.zona||'Sin zona'}</span>
