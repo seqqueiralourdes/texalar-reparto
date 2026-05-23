@@ -566,10 +566,9 @@ function renderFecha() {
 function renderCobrosPendientes() {
   const list = document.getElementById('pendientes-list');
 
-  // Juntar todos los pendientes del historial agrupados por zona
   const porZona = {};
-  state.historial.forEach(h => {
-    h.entregas.forEach(e => {
+  state.historial.forEach((h, hIdx) => {
+    h.entregas.forEach((e, eIdx) => {
       if (e.entregado && e.pago === 'pendiente') {
         if (!porZona[h.zona]) porZona[h.zona] = [];
         porZona[h.zona].push({
@@ -577,7 +576,10 @@ function renderCobrosPendientes() {
           bid5: e.bid5 || 0,
           bid10: e.bid10 || 0,
           fecha: h.fecha,
-          total: calcularTotal(e.bid5||0, e.bid10||0)
+          total: calcularTotal(e.bid5||0, e.bid10||0),
+          tel: state.clientes.find(c => c.nombre === e.nombre)?.tel || null,
+          hIdx,
+          eIdx
         });
       }
     });
@@ -590,8 +592,8 @@ function renderCobrosPendientes() {
     return;
   }
 
-  const totalGeneral = zonas.reduce((s, z) =>
-    s + porZona[z].reduce((ss, e) => ss + e.total, 0), 0);
+  const totalGeneral = zonas.reduce((s,z) =>
+    s + porZona[z].reduce((ss,e) => ss + e.total, 0), 0);
 
   list.innerHTML = `
     <div class="pend-total-banner">
@@ -607,20 +609,38 @@ function renderCobrosPendientes() {
             <span class="tag tag-blue">📍 ${zona}</span>
             <span class="pend-zona-total">${formatPeso(totalZona)}</span>
           </div>
-          ${clientes.map(c => `
-            <div class="pend-card">
-              <div class="pend-card-info">
-                <div class="pend-card-nombre">${c.nombre}</div>
-                <div class="pend-card-detalle">
-                  ${c.bid5>0?`${c.bid5}×5lts `:''}${c.bid10>0?`${c.bid10}×10lts`:''}
-                  · ${formatDate(c.fecha)}
+          ${clientes.map(c => {
+            const bid5txt = c.bid5 > 0 ? `${c.bid5} bidón${c.bid5>1?'es':''} 5lts` : '';
+            const bid10txt = c.bid10 > 0 ? `${c.bid10} bidón${c.bid10>1?'es':''} 10lts` : '';
+            const bidTxt = [bid5txt, bid10txt].filter(Boolean).join(' y ');
+            return `
+              <div class="pend-card">
+                <div class="pend-card-top">
+                  <div class="pend-card-info">
+                    <div class="pend-card-nombre">${c.nombre}</div>
+                    <div class="pend-card-detalle">Entregado el ${formatDate(c.fecha)}</div>
+                    <div class="pend-card-detalle">${bidTxt}</div>
+                  </div>
+                  <div class="pend-card-right">
+                    <span class="pend-monto">${formatPeso(c.total)}</span>
+                  </div>
                 </div>
-              </div>
-              <span class="pend-monto">${formatPeso(c.total)}</span>
-            </div>
-          `).join('')}
+                <div class="pend-card-actions">
+                  ${c.tel ? `<a class="pend-action-btn pend-tel-btn" href="tel:${c.tel.replace(/\s/g,'')}">📞 Llamar</a>` : ''}
+                  <button class="pend-action-btn pend-cobrado-btn" onclick="marcarCobrado(${c.hIdx}, ${c.eIdx})">✓ Cobrado</button>
+                </div>
+              </div>`;
+          }).join('')}
         </div>`;
     }).join('')}`;
+}
+
+function marcarCobrado(hIdx, eIdx) {
+  if (!confirm('¿Marcar este cobro como recibido?')) return;
+  state.historial[hIdx].entregas[eIdx].pago = 'efectivo';
+  saveState();
+  renderCobrosPendientes();
+  renderHistorial();
 }
 
 loadState();
