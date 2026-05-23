@@ -59,9 +59,13 @@
         <span class="nav-icon">📍</span>
         Zonas
       </button>
-     <button class="nav-item" onclick="showTab('historial', this)">
+    <button class="nav-item" onclick="showTab('historial', this)">
         <span class="nav-icon">📋</span>
         Historial
+      </button>
+      <button class="nav-item" onclick="showTab('pendientes', this)">
+        <span class="nav-icon">⏳</span>
+        Cobros
       </button>
     </nav>
 
@@ -156,6 +160,12 @@
 
   </div>
 
+<!-- Sección: Cobros pendientes -->
+    <section id="sec-pendientes" class="section">
+      <div class="sec-title">Cobros pendientes</div>
+      <div id="pendientes-list"></div>
+    </section>
+  
   <script src="app.js"></script>
 </body>
 </html>
