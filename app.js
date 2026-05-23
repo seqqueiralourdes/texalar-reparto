@@ -1,918 +1,1187 @@
-// ─── Configuración Supabase ───────────────────────────────────
-const SUPABASE_URL = 'https://qrrbspqxcvnbrsnepdgf.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_OrXy_D4fB0agmE-53Oytnw_3Ff6RSuK';
+// ═══════════════════════════════════════════════════════════════
+//  TEXALAR REPARTO — app.js  (versión Supabase)
+// ═══════════════════════════════════════════════════════════════
 
-const PRECIO_5  = 5000;
-const PRECIO_10 = 8000;
+// ─── Supabase config ────────────────────────────────────────────
+const SUPA_URL = 'https://qrrbspqxcvnbrsnepdgf.supabase.co';
+const SUPA_KEY = 'sb_publishable_OrXy_D4fB0agmE-53Oytnw_3Ff6RSuK';
 
-// ─── Estado ───────────────────────────────────────────────────
-let currentUser = null;
-let zonas       = [];
-let clientes    = [];
-let entregas    = {};
-let historial   = [];
-let zonaHoy     = null;
+function supaHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    'apikey': SUPA_KEY,
+    'Authorization': `Bearer ${SUPA_KEY}`,
+    'Prefer': 'return=representation'
+  };
+}
 
-// ─── Supabase fetch helper ────────────────────────────────────
-async function db(path, options = {}) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    headers: {
-      'apikey':        SUPABASE_KEY,
-      'Authorization': `Bearer ${SUPABASE_KEY}`,
-      'Content-Type':  'application/json',
-      'Prefer':        options.prefer || 'return=representation',
-      ...options.headers
-    },
-    ...options
+async function supa(path, opts = {}) {
+  const res = await fetch(SUPA_URL + '/rest/v1/' + path, {
+    headers: supaHeaders(),
+    ...opts
   });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(err);
-  }
   const text = await res.text();
+  if (!res.ok) throw new Error(text);
   return text ? JSON.parse(text) : [];
 }
 
-function showLoading(v) {
-  document.getElementById('loading').style.display = v ? 'flex' : 'none';
+// ─── Estado en memoria ──────────────────────────────────────────
+const PRECIO_5  = 5000;
+const PRECIO_10 = 8000;
+
+let currentUser = null;   // { id, nombre, rol }
+let state = {
+  clientes: [],
+  zonas: [],
+  ruta: {},          // { "YYYY-MM-DD": { zonaId, entregas: { clienteId: {...} } } }
+  historial: [],
+  nextClienteId: 1
+};
+
+// ─── Helpers ────────────────────────────────────────────────────
+function getToday() {
+  return new Date().toISOString().slice(0, 10);
 }
 
-// ─── Login / Logout ───────────────────────────────────────────
-async function login() {
-  const nombre = document.getElementById('login-nombre').value.trim();
+function formatPeso(n) {
+  return '$' + Math.round(n).toLocaleString('es-AR');
+}
+
+function calcularTotal(bid5, bid10) {
+  return (bid5 || 0) * PRECIO_5 + (bid10 || 0) * PRECIO_10;
+}
+
+function showLoading(show) {
+  document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
+}
+
+// ─── LOGIN ──────────────────────────────────────────────────────
+async function doLogin() {
+  const nombre = document.getElementById('login-usuario').value.trim();
   const clave  = document.getElementById('login-clave').value.trim();
-  if (!nombre || !clave) { alert('Completá usuario y contraseña.'); return; }
+  const errEl  = document.getElementById('login-error');
+  errEl.style.display = 'none';
+
+  if (!nombre || !clave) {
+    errEl.textContent = 'Completá usuario y clave.';
+    errEl.style.display = 'block';
+    return;
+  }
 
   showLoading(true);
   try {
-    const rows = await db(`usuarios?nombre=eq.${encodeURIComponent(nombre)}&clave=eq.${encodeURIComponent(clave)}&select=*`);
+    const rows = await supa(`usuarios?nombre=eq.${encodeURIComponent(nombre)}&clave=eq.${encodeURIComponent(clave)}&select=id,nombre,rol`);
     if (!rows.length) {
-      document.getElementById('login-error').style.display = 'block';
+      errEl.textContent = 'Usuario o clave incorrectos.';
+      errEl.style.display = 'block';
+      showLoading(false);
       return;
     }
     currentUser = rows[0];
-    document.getElementById('login-error').style.display = 'none';
     localStorage.setItem('texalar_user', JSON.stringify(currentUser));
-
-    if (currentUser.rol === 'admin') {
-      showScreen('admin');
-      await cargarAdmin();
-    } else {
-      showScreen('app');
-      await cargarDatos();
-    }
+    await iniciarSesion();
   } catch(e) {
-    alert('Error al conectar. Intentá de nuevo.');
+    errEl.textContent = 'Error de conexión. Verificá tu internet.';
+    errEl.style.display = 'block';
     console.error(e);
-  } finally {
-    showLoading(false);
+  }
+  showLoading(false);
+}
+
+document.getElementById('login-clave').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+
+function doLogout() {
+  currentUser = null;
+  localStorage.removeItem('texalar_user');
+  document.getElementById('pantalla-app').style.display   = 'none';
+  document.getElementById('pantalla-admin').style.display = 'none';
+  document.getElementById('pantalla-login').style.display = 'flex';
+  document.getElementById('login-usuario').value = '';
+  document.getElementById('login-clave').value   = '';
+}
+
+async function iniciarSesion() {
+  if (currentUser.rol === 'admin') {
+    document.getElementById('pantalla-login').style.display = 'none';
+    document.getElementById('pantalla-admin').style.display = 'block';
+    await cargarAdmin();
+  } else {
+    document.getElementById('pantalla-login').style.display = 'none';
+    document.getElementById('pantalla-app').style.display   = 'block';
+    document.getElementById('header-usuario').textContent   = currentUser.nombre;
+    await cargarDatosEmpleado();
+    renderFecha();
+    renderAll();
   }
 }
 
-function logout() {
-  currentUser = null;
-  zonas = []; clientes = []; entregas = {}; historial = []; zonaHoy = null;
-  localStorage.removeItem('texalar_user');
-  document.getElementById('login-nombre').value = '';
-  document.getElementById('login-clave').value  = '';
-  showScreen('login');
-}
-
-function showScreen(name) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById('screen-' + name).classList.add('active');
-}
-
-// ─── Cargar datos del empleado ────────────────────────────────
-async function cargarDatos() {
+// ─── Cargar datos del empleado desde Supabase ────────────────────
+async function cargarDatosEmpleado() {
   showLoading(true);
   try {
-    // Zonas
-    zonas = await db(`zonas?usuario_id=eq.${currentUser.id}&order=created_at`);
-    // Clientes
-    clientes = await db(`clientes?usuario_id=eq.${currentUser.id}&order=orden`);
-    // Entregas de hoy
+    // Cargar zonas del empleado
+    const zonas = await supa(`zonas?usuario_id=eq.${currentUser.id}&select=id,nombre&order=nombre`);
+    state.zonas = zonas.map(z => ({ id: z.id, nombre: z.nombre }));
+
+    // Cargar clientes del empleado
+    const clientes = await supa(`clientes?usuario_id=eq.${currentUser.id}&select=id,nombre,direccion,telefono,bidones_habituales,orden,zona_id&order=orden`);
+    state.clientes = clientes.map(c => ({
+      id: c.id,
+      nombre: c.nombre,
+      dir: c.direccion,
+      tel: c.telefono || '',
+      bidHab: c.bidones_habituales || 1,
+      orden: c.orden || 1,
+      zonaId: c.zona_id
+    }));
+
+    // Cargar entregas de los últimos 30 días
+    const hace30 = new Date();
+    hace30.setDate(hace30.getDate() - 30);
+    const desde = hace30.toISOString().slice(0, 10);
+
+    const entregas = await supa(`entregas?usuario_id=eq.${currentUser.id}&fecha=gte.${desde}&select=id,cliente_id,fecha,bid5,bid10,pago,dev_bidones,dev_canillas,entregado&order=fecha.desc`);
+
+    // Reconstruir state.ruta y state.historial desde entregas
+    state.ruta = {};
+    const porFecha = {};
+    entregas.forEach(e => {
+      if (!porFecha[e.fecha]) porFecha[e.fecha] = [];
+      porFecha[e.fecha].push(e);
+    });
+
+    // Ruta de hoy
     const today = getToday();
-    const hoy = await db(`entregas?usuario_id=eq.${currentUser.id}&fecha=eq.${today}&select=*,clientes(nombre)`);
-    entregas = {};
-    hoy.forEach(e => { entregas[e.cliente_id] = e; });
-    // Historial de la semana
-    const lunesFecha = getLunes();
-    historial = await db(`entregas?usuario_id=eq.${currentUser.id}&fecha=gte.${lunesFecha}&entregado=eq.true&select=*,clientes(nombre,zona_id),zonas:clientes(zona_id(nombre))`);
-
-    renderFecha();
-    renderHeaderUser();
-    renderSelectorZona();
-    renderOpcionesZona();
-    renderZonaSelect();
-    renderClientes();
-    renderZonas();
-    renderHistorial();
-    renderStats();
-    renderCobrosPendientes();
-  } catch(e) {
-    console.error(e);
-    alert('Error cargando datos.');
-  } finally {
-    showLoading(false);
-  }
-}
-
-function renderHeaderUser() {
-  const el = document.getElementById('header-user');
-  if (el) el.textContent = `👤 ${currentUser.nombre}`;
-}
-
-// ─── Utilidades ───────────────────────────────────────────────
-function getToday()  { return new Date().toISOString().slice(0,10); }
-function getLunes()  {
-  const hoy = new Date();
-  const lunes = new Date(hoy);
-  lunes.setDate(hoy.getDate() - ((hoy.getDay() + 6) % 7));
-  return lunes.toISOString().slice(0,10);
-}
-function formatDate(d)        { const [y,m,day] = d.split('-'); return `${day}/${m}/${y}`; }
-function initials(n)          { return n.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase(); }
-function formatPeso(n)        { return '$' + Math.round(n).toLocaleString('es-AR'); }
-function calcularTotal(b5,b10){ return (b5*PRECIO_5) + (b10*PRECIO_10); }
-function clientesDeZona(zid)  { return clientes.filter(c => c.zona_id === zid); }
-
-// ─── Stats ────────────────────────────────────────────────────
-let totalVisible = true;
-
-function renderStats() {
-  const clientesZona = zonaHoy ? clientesDeZona(zonaHoy.id) : [];
-  const entregados   = clientesZona.filter(c => entregas[c.id]?.entregado);
-  const pct = clientesZona.length ? Math.round((entregados.length/clientesZona.length)*100) : 0;
-
-  document.getElementById('stat-clientes').textContent = `${entregados.length}/${clientesZona.length}`;
-  document.getElementById('prog-bar').style.width = pct + '%';
-  document.getElementById('prog-pct').textContent  = pct + '%';
-
-  // Total del día completo
-  const today = getToday();
-  const todasHoy = Object.values(entregas).filter(e => e.entregado);
-  const histHoy  = historial.filter(e => e.fecha === today && e.entregado);
-  const todas    = [...todasHoy, ...histHoy];
-
-  const totalEf = todas.filter(e => (e.pago||'efectivo')==='efectivo')
-    .reduce((s,e) => s + calcularTotal(e.bid5||0,e.bid10||0), 0);
-  const totalTr = todas.filter(e => e.pago==='transferencia')
-    .reduce((s,e) => s + calcularTotal(e.bid5||0,e.bid10||0), 0);
-  const totalDia = totalEf + totalTr;
-
-  const totalEl = document.getElementById('stat-total');
-  if (totalEl) {
-    totalEl.innerHTML = `<span class="total-prefix">$</span><span class="total-amount" id="total-amount">${Math.round(totalDia).toLocaleString('es-AR')}</span><button class="total-toggle" onclick="toggleTotal()"><i class="ti ti-eye" id="total-icon"></i></button>`;
-    if (!totalVisible) {
-      const amt = document.getElementById('total-amount');
-      if (amt) amt.style.filter = 'blur(4px)';
+    if (porFecha[today]) {
+      const entregasHoy = {};
+      let zonaIdHoy = null;
+      porFecha[today].forEach(e => {
+        entregasHoy[e.cliente_id] = {
+          entregaId: e.id,
+          bid5: e.bid5,
+          bid10: e.bid10,
+          pago: e.pago,
+          devBidones: e.dev_bidones,
+          devCanillas: e.dev_canillas,
+          entregado: e.entregado
+        };
+        // Inferir zona del primer cliente entregado
+        if (!zonaIdHoy) {
+          const cli = state.clientes.find(c => c.id === e.cliente_id);
+          if (cli) zonaIdHoy = cli.zonaId;
+        }
+      });
+      state.ruta[today] = { zonaId: zonaIdHoy, entregas: entregasHoy };
     }
+
+    // Historial (días anteriores)
+    state.historial = [];
+    const fechas = Object.keys(porFecha).filter(f => f !== today).sort().reverse();
+    fechas.forEach(fecha => {
+      const ents = porFecha[fecha];
+      const entregasMap = {};
+      let zonaIdDia = null;
+      ents.forEach(e => {
+        entregasMap[e.cliente_id] = {
+          entregaId: e.id,
+          bid5: e.bid5,
+          bid10: e.bid10,
+          pago: e.pago,
+          entregado: e.entregado
+        };
+        if (!zonaIdDia) {
+          const cli = state.clientes.find(c => c.id === e.cliente_id);
+          if (cli) zonaIdDia = cli.zonaId;
+        }
+      });
+      const zonaNombre = state.zonas.find(z => z.id === zonaIdDia)?.nombre || 'Sin zona';
+      // Rebuild entregas as array for historial render
+      const entregasArr = state.clientes
+        .filter(c => entregasMap[c.id])
+        .map(c => ({
+          nombre: c.nombre,
+          bid5: entregasMap[c.id].bid5 || 0,
+          bid10: entregasMap[c.id].bid10 || 0,
+          pago: entregasMap[c.id].pago || '',
+          entregado: entregasMap[c.id].entregado,
+          entregaId: entregasMap[c.id].entregaId,
+          clienteId: c.id
+        }));
+      state.historial.push({ fecha, zona: zonaNombre, zonaId: zonaIdDia, entregas: entregasArr });
+    });
+
+  } catch(e) {
+    console.error('Error cargando datos:', e);
+    alert('Error al cargar datos. Verificá tu conexión.');
   }
-
-  const desgEl = document.getElementById('stat-desglose');
-  if (desgEl) {
-    desgEl.innerHTML = `
-      <div class="desglose-item">💵 <span>${formatPeso(totalEf)}</span></div>
-      <div class="desglose-item">🔵 <span>${formatPeso(totalTr)}</span></div>`;
-  }
-
-  const totalDevBid = clientesZona.reduce((s,c) => s+(entregas[c.id]?.dev_bidones||0), 0);
-  const totalDevCan = clientesZona.reduce((s,c) => s+(entregas[c.id]?.dev_canillas||0), 0);
-  const devEl = document.getElementById('stat-devoluciones');
-  if (devEl) {
-    devEl.innerHTML = `
-      <div class="desglose-item">🪣 ${totalDevBid} bid. devueltos</div>
-      <div class="desglose-item">🚰 ${totalDevCan} canillas devueltas</div>`;
-  }
-
-  const exportarWrap = document.getElementById('exportar-wrap');
-  if (exportarWrap) exportarWrap.style.display = entregados.length > 0 ? 'block' : 'none';
+  showLoading(false);
 }
 
-function toggleTotal() {
-  totalVisible = !totalVisible;
-  const amt  = document.getElementById('total-amount');
-  const icon = document.getElementById('total-icon');
-  if (amt)  amt.style.filter = totalVisible ? 'none' : 'blur(4px)';
-  if (icon) icon.className   = totalVisible ? 'ti ti-eye' : 'ti ti-eye-off';
-}
+// ─── Persiste entrega en Supabase ────────────────────────────────
+async function guardarEntrega(clienteId, datos) {
+  const today = getToday();
+  const existente = state.ruta[today]?.entregas?.[clienteId];
 
-// ─── Fecha ────────────────────────────────────────────────────
-function renderFecha() {
-  const dias  = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
-  const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-  const hoy   = new Date();
-  const el = document.getElementById('fecha-hoy');
-  if (el) el.textContent = `${dias[hoy.getDay()]} ${hoy.getDate()} de ${meses[hoy.getMonth()]}`;
-}
-
-// ─── Navegación ───────────────────────────────────────────────
-function showTab(tab, btn) {
-  document.querySelectorAll('#screen-app .section').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('#screen-app .nav-item').forEach(t => t.classList.remove('active'));
-  document.getElementById('sec-' + tab).classList.add('active');
-  btn.classList.add('active');
-  const exportarWrap = document.getElementById('exportar-wrap');
-  if (exportarWrap) exportarWrap.style.display = (tab==='ruta' && zonaHoy) ? 'block' : 'none';
-  if (tab === 'pendientes') renderCobrosPendientes();
-  if (tab === 'historial')  renderHistorial();
-}
-
-// ─── Selector de zona ─────────────────────────────────────────
-function renderSelectorZona() {
-  if (zonaHoy) {
-    document.getElementById('zona-selector').style.display = 'none';
-    document.getElementById('zona-activa').style.display   = 'flex';
-    document.getElementById('zona-activa-nombre').textContent = zonaHoy.nombre;
+  if (existente?.entregaId) {
+    // UPDATE
+    await supa(`entregas?id=eq.${existente.entregaId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        bid5: datos.bid5 || 0,
+        bid10: datos.bid10 || 0,
+        pago: datos.pago || null,
+        dev_bidones: datos.devBidones || 0,
+        dev_canillas: datos.devCanillas || 0,
+        entregado: datos.entregado || false
+      })
+    });
   } else {
-    document.getElementById('zona-selector').style.display = 'block';
-    document.getElementById('zona-activa').style.display   = 'none';
-    document.getElementById('ruta-list').innerHTML = '';
+    // INSERT
+    const rows = await supa('entregas', {
+      method: 'POST',
+      body: JSON.stringify({
+        cliente_id: clienteId,
+        usuario_id: currentUser.id,
+        fecha: today,
+        bid5: datos.bid5 || 0,
+        bid10: datos.bid10 || 0,
+        pago: datos.pago || null,
+        dev_bidones: datos.devBidones || 0,
+        dev_canillas: datos.devCanillas || 0,
+        entregado: datos.entregado || false
+      })
+    });
+    if (!state.ruta[today]) state.ruta[today] = { zonaId: null, entregas: {} };
+    if (!state.ruta[today].entregas[clienteId]) state.ruta[today].entregas[clienteId] = {};
+    state.ruta[today].entregas[clienteId].entregaId = rows[0]?.id;
   }
 }
 
-function renderOpcionesZona() {
-  const list = document.getElementById('zonas-opciones');
-  if (!zonas.length) {
-    list.innerHTML = '<div class="empty">No hay zonas creadas. Agregá una en la pestaña Zonas.</div>';
-    return;
-  }
-  list.innerHTML = zonas.map(z => {
-    const todos      = clientesDeZona(z.id);
-    const pendientes = todos.filter(c => !entregas[c.id]?.entregado).length;
-    return `
-      <button class="zona-opcion" onclick="elegirZona('${z.id}')">
-        <span class="zona-opcion-icon">📍</span>
-        <span class="zona-opcion-nombre">${z.nombre}</span>
-        <span class="zona-opcion-cant">${pendientes} pendientes</span>
-      </button>`;
-  }).join('');
+// ─── Zona del día ────────────────────────────────────────────────
+function getZonaHoy() {
+  return state.ruta[getToday()]?.zonaId || null;
 }
 
-function elegirZona(zonaId) {
-  zonaHoy = zonas.find(z => z.id === zonaId);
-  initEntregas();
+function clientesDeZona(zonaId) {
+  return state.clientes.filter(c => c.zonaId === zonaId).sort((a,b) => a.orden - b.orden);
+}
+
+// ─── RENDER PRINCIPAL ────────────────────────────────────────────
+function renderAll() {
   renderSelectorZona();
   renderRuta();
+  renderClientes();
+  renderZonas();
+  renderHistorial();
+  renderCobrosPendientes();
   renderStats();
+}
+
+// ─── Selector de zona del día ────────────────────────────────────
+function renderSelectorZona() {
+  const zonaId = getZonaHoy();
+  const wrap   = document.getElementById('zona-selector');
+
+  if (!zonaId) {
+    if (!state.zonas.length) {
+      wrap.innerHTML = '<div style="font-size:13px;color:#888;">Primero agregá una zona</div>';
+      return;
+    }
+    wrap.innerHTML = `
+      <select class="input input-sm" id="zona-select-hoy" style="margin-bottom:8px;">
+        <option value="">Elegir zona...</option>
+        ${state.zonas.map(z => `<option value="${z.id}">${z.nombre}</option>`).join('')}
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="elegirZona()">
+        <i class="ti ti-check"></i> Confirmar
+      </button>`;
+  } else {
+    const zona = state.zonas.find(z => z.id === zonaId);
+    wrap.innerHTML = `
+      <span class="zona-badge"><i class="ti ti-map-pin"></i> ${zona?.nombre || 'Zona'}</span>
+      <button class="btn btn-outline btn-xs" style="margin-left:8px;" onclick="cambiarZona()">Cambiar</button>`;
+  }
+
+  const exportarWrap = document.getElementById('exportar-wrap');
+  if (exportarWrap) exportarWrap.style.display = zonaId ? 'block' : 'none';
+}
+
+function elegirZona() {
+  const sel = document.getElementById('zona-select-hoy');
+  const zonaId = sel.value;
+  if (!zonaId) return;
+  const today = getToday();
+  if (!state.ruta[today]) state.ruta[today] = { zonaId: null, entregas: {} };
+  state.ruta[today].zonaId = zonaId;
+  renderAll();
 }
 
 function cambiarZona() {
-  if (!confirm('¿Cambiar la zona? Las entregas ya realizadas quedan en el historial.')) return;
-  zonaHoy = null;
-  renderSelectorZona();
-  renderOpcionesZona();
-  renderStats();
-}
-
-function initEntregas() {
-  if (!zonaHoy) return;
-  clientesDeZona(zonaHoy.id).forEach(c => {
-    if (!entregas[c.id]) {
-      entregas[c.id] = {
-        cliente_id: c.id, usuario_id: currentUser.id,
-        fecha: getToday(), bid5: 0, bid10: c.bidones_habituales||1,
-        pago: null, dev_bidones: 0, dev_canillas: 0, entregado: false
-      };
-    }
-  });
-}
-
-// ─── Ruta ─────────────────────────────────────────────────────
-function renderRuta() {
-  if (!zonaHoy) { document.getElementById('ruta-list').innerHTML = ''; return; }
-
-  const lista = clientesDeZona(zonaHoy.id).sort((a,b) => a.orden - b.orden);
-
-  if (!lista.length) {
-    document.getElementById('ruta-list').innerHTML = `<div class="empty">No hay clientes en ${zonaHoy.nombre}.</div>`;
-    renderStats(); return;
-  }
-
-  const pendientes = lista.filter(c => !entregas[c.id]?.entregado);
-  const pendientesHtml = pendientes.length
-    ? `<div class="pendientes-bar">⏳ ${pendientes.length} pendiente${pendientes.length!==1?'s':''}: ${pendientes.map(c=>c.nombre.split(' ')[0]).join(', ')}</div>`
-    : `<div class="pendientes-bar pendientes-ok">✅ Todos entregados</div>`;
-
-  document.getElementById('ruta-list').innerHTML = pendientesHtml + lista.map(c => {
-    const r    = entregas[c.id] || { bid5:0, bid10:c.bidones_habituales||1, entregado:false, pago:null, dev_bidones:0, dev_canillas:0 };
-    const done = r.entregado;
-    const total = calcularTotal(r.bid5, r.bid10);
-    const pagoLabel = r.pago==='transferencia' ? '<span class="pago-badge pago-transf">🔵 Transferencia</span>'
-                    : r.pago==='efectivo'      ? '<span class="pago-badge pago-efec">💵 Efectivo</span>'
-                    : r.pago==='pendiente'     ? '<span class="pago-badge pago-pend">⏳ Pendiente</span>'
-                    : '';
-    return `
-      <div class="card ${done?'done':''}">
-        <div class="card-top">
-          <div class="stop-badge ${done?'done':''}">${c.orden}</div>
-          <div style="flex:1;min-width:0;">
-            <div class="client-name ${done?'done':''}">${c.nombre}</div>
-            <div class="client-addr">📍 ${c.direccion}</div>
-            ${c.telefono ? `<div class="client-tel">📞 ${c.telefono}</div>` : ''}
-          </div>
-          ${done ? `<div class="card-total">${formatPeso(total)}</div>` : ''}
-        </div>
-        <div class="bid-grid">
-          <div class="bid-row">
-            <span class="bid-tipo">5 lts</span>
-            <button class="bid-btn" onclick="cambiarBidones('${c.id}','bid5',-1)" ${done?'disabled':''}>−</button>
-            <span class="bid-num">${r.bid5}</span>
-            <button class="bid-btn" onclick="cambiarBidones('${c.id}','bid5',1)" ${done?'disabled':''}>+</button>
-            <span class="bid-precio">${formatPeso(PRECIO_5)}c/u</span>
-          </div>
-          <div class="bid-row">
-            <span class="bid-tipo">10 lts</span>
-            <button class="bid-btn" onclick="cambiarBidones('${c.id}','bid10',-1)" ${done?'disabled':''}>−</button>
-            <span class="bid-num">${r.bid10}</span>
-            <button class="bid-btn" onclick="cambiarBidones('${c.id}','bid10',1)" ${done?'disabled':''}>+</button>
-            <span class="bid-precio">${formatPeso(PRECIO_10)}c/u</span>
-          </div>
-        </div>
-        ${!done ? `
-        <div class="pago-selector">
-          <span class="pago-label">Método de pago:</span>
-          <div class="pago-btns">
-            <button class="pago-btn ${r.pago==='efectivo'?'pago-btn-active':''}" onclick="setPago('${c.id}','efectivo')">💵 Efectivo</button>
-            <button class="pago-btn ${r.pago==='transferencia'?'pago-btn-active':''}" onclick="setPago('${c.id}','transferencia')">🔵 Transferencia</button>
-            <button class="pago-btn ${r.pago==='pendiente'?'pago-btn-pendiente':''}" onclick="setPago('${c.id}','pendiente')">⏳ Pendiente</button>
-          </div>
-        </div>` : `<div style="margin-bottom:10px;">${pagoLabel}</div>`}
-        <div class="dev-section">
-          <div class="dev-row">
-            <span class="dev-label">🪣 ¿Devuelve bidones?</span>
-            <div class="dev-ctrl">
-              <button class="bid-btn" onclick="cambiarDev('${c.id}','dev_bidones',-1)" ${done?'disabled':''}>−</button>
-              <span class="bid-num">${r.dev_bidones||0}</span>
-              <button class="bid-btn" onclick="cambiarDev('${c.id}','dev_bidones',1)" ${done?'disabled':''}>+</button>
-            </div>
-          </div>
-          <div class="dev-row">
-            <span class="dev-label">🚰 ¿Devuelve canillas?</span>
-            <div class="dev-ctrl">
-              <button class="bid-btn" onclick="cambiarDev('${c.id}','dev_canillas',-1)" ${done?'disabled':''}>−</button>
-              <span class="bid-num">${r.dev_canillas||0}</span>
-              <button class="bid-btn" onclick="cambiarDev('${c.id}','dev_canillas',1)" ${done?'disabled':''}>+</button>
-            </div>
-          </div>
-        </div>
-        <div class="card-bottom">
-          <div class="subtotal">Subtotal: <strong>${formatPeso(total)}</strong></div>
-          <button class="mark-btn ${done?'done':''}" onclick="toggleEntregado('${c.id}')" ${!done&&!r.pago?'disabled':''}>
-            ${done ? '✓ Entregado' : 'Marcar entregado'}
-          </button>
-        </div>
-      </div>`;
-  }).join('');
-  renderStats();
-}
-
-function cambiarBidones(id, tipo, delta) {
-  if (!entregas[id]) return;
-  entregas[id][tipo] = Math.max(0, (entregas[id][tipo]||0) + delta);
-  renderRuta();
-}
-
-function cambiarDev(id, tipo, delta) {
-  if (!entregas[id]) return;
-  entregas[id][tipo] = Math.max(0, (entregas[id][tipo]||0) + delta);
-  renderRuta();
-}
-
-function setPago(id, metodo) {
-  if (!entregas[id]) return;
-  entregas[id].pago = metodo;
-  renderRuta();
-}
-
-async function toggleEntregado(id) {
-  if (!entregas[id]) return;
-  const e = entregas[id];
-  if (!e.entregado && !e.pago) { alert('Seleccioná un método de pago antes de marcar como entregado.'); return; }
-  e.entregado = !e.entregado;
-  renderRuta();
-
-  // Guardar en Supabase
-  try {
-    if (e.id) {
-      // Actualizar
-      await db(`entregas?id=eq.${e.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          bid5: e.bid5, bid10: e.bid10, pago: e.pago,
-          dev_bidones: e.dev_bidones, dev_canillas: e.dev_canillas,
-          entregado: e.entregado
-        })
-      });
-    } else {
-      // Crear
-      const rows = await db('entregas', {
-        method: 'POST',
-        body: JSON.stringify({
-          cliente_id: id, usuario_id: currentUser.id,
-          fecha: getToday(), bid5: e.bid5, bid10: e.bid10,
-          pago: e.pago, dev_bidones: e.dev_bidones,
-          dev_canillas: e.dev_canillas, entregado: e.entregado
-        })
-      });
-      if (rows[0]) entregas[id].id = rows[0].id;
-    }
-    await recargarHistorial();
-    renderStats();
-  } catch(err) {
-    console.error('Error guardando entrega:', err);
-  }
-}
-
-async function recargarHistorial() {
-  const lunesFecha = getLunes();
-  historial = await db(`entregas?usuario_id=eq.${currentUser.id}&fecha=gte.${lunesFecha}&entregado=eq.true&select=*,clientes(nombre,zona_id,zonas:zona_id(nombre))`);
-  renderHistorial();
-  renderCobrosPendientes();
-}
-
-// ─── Exportar ─────────────────────────────────────────────────
-function exportarResumen() {
-  if (!zonaHoy) return;
+  if (!confirm('¿Cambiar la zona? Las entregas ya realizadas quedan guardadas en el historial.')) return;
   const today = getToday();
-  const lista = clientesDeZona(zonaHoy.id).filter(c => entregas[c.id]?.entregado);
-  if (!lista.length) { alert('No hay entregas realizadas hoy.'); return; }
-
-  let texto = `TEXALAR REPARTO — ${formatDate(today)}\nEmpleado: ${currentUser.nombre}\nZona: ${zonaHoy.nombre}\n${'─'.repeat(30)}\n`;
-  let totalEf = 0, totalTr = 0;
-
-  lista.forEach(c => {
-    const e = entregas[c.id];
-    const total = calcularTotal(e.bid5||0, e.bid10||0);
-    const pago  = e.pago==='transferencia' ? '🔵 Transferencia' : e.pago==='pendiente' ? '⏳ Pendiente' : '💵 Efectivo';
-    texto += `• ${c.nombre} (${pago})\n`;
-    if (e.bid5  > 0) texto += `  ${e.bid5} bidón/es 5lts\n`;
-    if (e.bid10 > 0) texto += `  ${e.bid10} bidón/es 10lts\n`;
-    texto += `  Subtotal: ${formatPeso(total)}\n`;
-    if (e.pago==='transferencia') totalTr += total;
-    else if (e.pago!=='pendiente') totalEf += total;
-  });
-
-  const devBid = lista.reduce((s,c) => s+(entregas[c.id]?.dev_bidones||0), 0);
-  const devCan = lista.reduce((s,c) => s+(entregas[c.id]?.dev_canillas||0), 0);
-
-  texto += `${'─'.repeat(30)}\n`;
-  texto += `💵 Efectivo:      ${formatPeso(totalEf)}\n`;
-  texto += `🔵 Transferencia: ${formatPeso(totalTr)}\n`;
-  texto += `TOTAL:            ${formatPeso(totalEf+totalTr)}\n`;
-  texto += `${'─'.repeat(30)}\n`;
-  texto += `🪣 Bidones recolectados:  ${devBid}\n`;
-  texto += `🚰 Canillas recolectadas: ${devCan}\n`;
-
-  navigator.clipboard.writeText(texto)
-    .then(() => alert('¡Resumen copiado al portapapeles!'))
-    .catch(() => prompt('Copiá este resumen:', texto));
+  if (state.ruta[today]) state.ruta[today].zonaId = null;
+  renderAll();
 }
 
-// ─── Zonas ────────────────────────────────────────────────────
-function renderZonas() {
-  const list = document.getElementById('zonas-list');
-  if (!zonas.length) { list.innerHTML = '<div class="empty">No hay zonas creadas todavía.</div>'; return; }
-  list.innerHTML = zonas.map(z => {
-    const cant = clientesDeZona(z.id).length;
-    return `
-      <div class="client-card">
-        <div class="client-avatar" style="font-size:18px;">📍</div>
-        <div class="client-info">
-          <div class="client-card-name">${z.nombre}</div>
-          <div class="client-card-detail">${cant} cliente${cant!==1?'s':''}</div>
-        </div>
-        <button class="del-btn" onclick="eliminarZona('${z.id}')">🗑</button>
-      </div>`;
-  }).join('');
-}
+// ─── RENDER RUTA ─────────────────────────────────────────────────
+function renderRuta() {
+  const zonaId = getZonaHoy();
+  const list   = document.getElementById('ruta-list');
+  if (!zonaId) {
+    list.innerHTML = '<div class="empty"><i class="ti ti-map-route" style="font-size:32px;opacity:.3;display:block;margin-bottom:8px;"></i>Elegí una zona para empezar el reparto</div>';
+    return;
+  }
+  const today    = getToday();
+  const clientes = clientesDeZona(zonaId);
+  const entregas = state.ruta[today]?.entregas || {};
 
-async function agregarZona() {
-  const nombre = document.getElementById('inp-zona').value.trim();
-  if (!nombre) { alert('Escribí un nombre para la zona.'); return; }
-  if (zonas.find(z => z.nombre === nombre)) { alert('Ya existe una zona con ese nombre.'); return; }
-  showLoading(true);
-  try {
-    const rows = await db('zonas', { method:'POST', body: JSON.stringify({ nombre, usuario_id: currentUser.id }) });
-    zonas.push(rows[0]);
-    document.getElementById('inp-zona').value = '';
-    renderZonas(); renderZonaSelect(); renderOpcionesZona();
-  } catch(e) { alert('Error al agregar zona.'); console.error(e); }
-  finally { showLoading(false); }
-}
-
-async function eliminarZona(id) {
-  const cant = clientesDeZona(id).length;
-  if (cant > 0) { alert(`No podés eliminar esta zona porque tiene ${cant} cliente${cant!==1?'s':''} asignado${cant!==1?'s':''}.`); return; }
-  if (!confirm('¿Eliminar esta zona?')) return;
-  showLoading(true);
-  try {
-    await db(`zonas?id=eq.${id}`, { method:'DELETE', prefer:'return=minimal' });
-    zonas = zonas.filter(z => z.id !== id);
-    renderZonas(); renderZonaSelect(); renderOpcionesZona();
-  } catch(e) { alert('Error al eliminar zona.'); }
-  finally { showLoading(false); }
-}
-
-function renderZonaSelect() {
-  const sel = document.getElementById('inp-zona-cliente');
-  sel.innerHTML = '<option value="">Seleccioná una zona</option>' +
-    zonas.map(z => `<option value="${z.id}">${z.nombre}</option>`).join('');
-}
-
-// ─── Clientes ─────────────────────────────────────────────────
-function renderClientes() {
-  const sorted = [...clientes].sort((a,b) => a.orden - b.orden);
-  if (!sorted.length) { document.getElementById('clientes-list').innerHTML = '<div class="empty">No hay clientes todavía.</div>'; return; }
-  document.getElementById('clientes-list').innerHTML = sorted.map(c => {
-    const zona = zonas.find(z => z.id === c.zona_id);
-    return `
-      <div class="client-card">
-        <div class="client-avatar">${initials(c.nombre)}</div>
-        <div class="client-info">
-          <div class="client-card-name">${c.nombre}</div>
-          <div class="client-card-detail">📍 ${c.direccion}</div>
-          ${c.telefono ? `<a class="client-card-detail client-tel-link" href="tel:${c.telefono.replace(/\s/g,'')}">📞 ${c.telefono}</a>` : ''}
-          <div class="client-tags">
-            <span class="tag tag-blue">💧 ${c.bidones_habituales} bidones</span>
-            <span class="tag tag-gray">${zona?.nombre || 'Sin zona'}</span>
-            <span class="tag tag-gray">Parada ${c.orden}</span>
-          </div>
-        </div>
-        <button class="del-btn" onclick="eliminarCliente('${c.id}')">🗑</button>
-      </div>`;
-  }).join('');
-}
-
-async function agregarCliente() {
-  const nombre  = document.getElementById('inp-nombre').value.trim();
-  const dir     = document.getElementById('inp-dir').value.trim();
-  const tel     = document.getElementById('inp-tel').value.trim();
-  const zona_id = document.getElementById('inp-zona-cliente').value;
-  const bid     = parseInt(document.getElementById('inp-bid').value)   || 1;
-  const orden   = parseInt(document.getElementById('inp-orden').value) || (clientes.length + 1);
-
-  if (!nombre || !dir) { alert('Nombre y dirección son obligatorios.'); return; }
-  if (!zona_id)        { alert('Seleccioná una zona.'); return; }
-
-  showLoading(true);
-  try {
-    const rows = await db('clientes', { method:'POST', body: JSON.stringify({
-      nombre, direccion: dir, telefono: tel, bidones_habituales: bid,
-      orden, zona_id, usuario_id: currentUser.id
-    })});
-    clientes.push(rows[0]);
-    ['inp-nombre','inp-dir','inp-tel','inp-bid','inp-orden'].forEach(id => document.getElementById(id).value='');
-    document.getElementById('inp-zona-cliente').value='';
-    renderClientes(); renderRuta(); renderZonas();
-  } catch(e) { alert('Error al agregar cliente.'); console.error(e); }
-  finally { showLoading(false); }
-}
-
-async function eliminarCliente(id) {
-  if (!confirm('¿Eliminar este cliente?')) return;
-  showLoading(true);
-  try {
-    await db(`clientes?id=eq.${id}`, { method:'DELETE', prefer:'return=minimal' });
-    clientes = clientes.filter(c => c.id !== id);
-    renderClientes(); renderRuta(); renderZonas();
-  } catch(e) { alert('Error al eliminar cliente.'); }
-  finally { showLoading(false); }
-}
-
-// ─── Historial ────────────────────────────────────────────────
-function esLunes() { return new Date().getDay() === 1; }
-
-async function limpiarHistorial() {
-  const clave = prompt('Ingresá la contraseña para limpiar el historial:');
-  if (clave === null) return;
-  if (clave !== '1234') { alert('Contraseña incorrecta.'); return; }
-  if (!confirm('¿Limpiar todo el historial de la semana?')) return;
-  showLoading(true);
-  try {
-    const lunesFecha = getLunes();
-    await db(`entregas?usuario_id=eq.${currentUser.id}&fecha=gte.${lunesFecha}`, { method:'DELETE', prefer:'return=minimal' });
-    historial = [];
-    entregas  = {};
-    renderHistorial(); renderStats();
-    alert('Historial limpiado correctamente.');
-  } catch(e) { alert('Error al limpiar historial.'); }
-  finally { showLoading(false); }
-}
-
-function renderHistorial() {
-  const botonLunes = esLunes()
-    ? `<button class="limpiar-btn" onclick="limpiarHistorial()">🗑 Limpiar historial de la semana</button>`
-    : '';
-
-  if (!historial.length) {
-    document.getElementById('hist-list').innerHTML = botonLunes + '<div class="empty">Todavía no hay entregas realizadas.</div>';
+  if (!clientes.length) {
+    list.innerHTML = '<div class="empty">No hay clientes en esta zona. Agregá clientes desde la sección Clientes.</div>';
     return;
   }
 
-  // Agrupar por fecha y zona
-  const porFecha = {};
-  historial.forEach(e => {
-    const fecha    = e.fecha;
-    const zonaNombre = e.clientes?.zonas?.nombre || 'Sin zona';
-    if (!porFecha[fecha]) porFecha[fecha] = {};
-    if (!porFecha[fecha][zonaNombre]) porFecha[fecha][zonaNombre] = [];
-    porFecha[fecha][zonaNombre].push(e);
+  list.innerHTML = clientes.map(c => {
+    const r = entregas[c.id] || {};
+    const bid5  = r.bid5  ?? c.bidHab;
+    const bid10 = r.bid10 ?? 0;
+    const total = calcularTotal(bid5, bid10);
+
+    return `
+    <div class="cliente-card ${r.entregado ? 'entregado' : ''}">
+      <div class="cliente-top">
+        <div class="cliente-info">
+          <div class="cliente-nombre">${c.nombre}</div>
+          <div class="cliente-dir"><i class="ti ti-map-pin"></i> ${c.dir}</div>
+          ${c.tel ? `<div class="cliente-dir"><i class="ti ti-phone"></i> ${c.tel}</div>` : ''}
+        </div>
+        <div class="cliente-total">${formatPeso(total)}</div>
+      </div>
+
+      <!-- Bidones -->
+      <div class="bid-grid">
+        <div class="bid-row">
+          <span class="bid-lbl">Bidones 5L <span class="bid-precio">${formatPeso(PRECIO_5)}/u</span></span>
+          <div class="bid-ctrl">
+            <button class="bid-btn" onclick="setBid('${c.id}',5,-1)">−</button>
+            <span class="bid-val" id="bid5-${c.id}">${bid5}</span>
+            <button class="bid-btn" onclick="setBid('${c.id}',5,1)">+</button>
+          </div>
+        </div>
+        <div class="bid-row">
+          <span class="bid-lbl">Bidones 10L <span class="bid-precio">${formatPeso(PRECIO_10)}/u</span></span>
+          <div class="bid-ctrl">
+            <button class="bid-btn" onclick="setBid('${c.id}',10,-1)">−</button>
+            <span class="bid-val" id="bid10-${c.id}">${bid10}</span>
+            <button class="bid-btn" onclick="setBid('${c.id}',10,1)">+</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pago -->
+      ${r.entregado ? `
+      <div class="pago-selector">
+        <div class="pago-label">Pago</div>
+        <div class="pago-btns">
+          <button class="pago-btn ${r.pago==='efectivo'?'pago-btn-active':''}" onclick="setPago('${c.id}','efectivo')">💵 Efectivo</button>
+          <button class="pago-btn ${r.pago==='transferencia'?'pago-btn-active':''}" onclick="setPago('${c.id}','transferencia')">🔵 Transferencia</button>
+          <button class="pago-btn ${r.pago==='pendiente'?'pago-btn-pendiente':''}" onclick="setPago('${c.id}','pendiente')">⏳ Pendiente</button>
+        </div>
+      </div>` : ''}
+
+      <!-- Devoluciones -->
+      ${r.entregado ? `
+      <div class="dev-section">
+        <div class="dev-label">Devoluciones</div>
+        <div class="dev-row">
+          <span>Bidones</span>
+          <div class="bid-ctrl">
+            <button class="bid-btn bid-btn-sm" onclick="setDev('${c.id}','bidones',-1)">−</button>
+            <span class="bid-val" id="devBid-${c.id}">${r.devBidones||0}</span>
+            <button class="bid-btn bid-btn-sm" onclick="setDev('${c.id}','bidones',1)">+</button>
+          </div>
+        </div>
+        <div class="dev-row">
+          <span>Canillas</span>
+          <div class="bid-ctrl">
+            <button class="bid-btn bid-btn-sm" onclick="setDev('${c.id}','canillas',-1)">−</button>
+            <span class="bid-val" id="devCan-${c.id}">${r.devCanillas||0}</span>
+            <button class="bid-btn bid-btn-sm" onclick="setDev('${c.id}','canillas',1)">+</button>
+          </div>
+        </div>
+      </div>` : ''}
+
+      <!-- Botón entregar -->
+      <button class="btn ${r.entregado ? 'btn-success' : 'btn-primary'} btn-block" onclick="toggleEntrega('${c.id}')">
+        ${r.entregado
+          ? '<i class="ti ti-check"></i> Entregado'
+          : '<i class="ti ti-truck-delivery"></i> Marcar entregado'}
+      </button>
+    </div>`;
+  }).join('');
+}
+
+// ─── Acciones de ruta ────────────────────────────────────────────
+async function toggleEntrega(clienteId) {
+  const today = getToday();
+  if (!state.ruta[today]) state.ruta[today] = { zonaId: getZonaHoy(), entregas: {} };
+  const r = state.ruta[today].entregas[clienteId] || {};
+  const cliente = state.clientes.find(c => c.id === clienteId);
+
+  if (!r.entregado) {
+    // Marcar entregado con valores actuales
+    state.ruta[today].entregas[clienteId] = {
+      ...r,
+      bid5: r.bid5 ?? (cliente?.bidHab || 1),
+      bid10: r.bid10 ?? 0,
+      entregado: true,
+      pago: r.pago || null
+    };
+  } else {
+    state.ruta[today].entregas[clienteId] = { ...r, entregado: false };
+  }
+
+  try {
+    await guardarEntrega(clienteId, state.ruta[today].entregas[clienteId]);
+  } catch(e) { console.error(e); }
+
+  renderRuta();
+  renderStats();
+}
+
+async function setBid(clienteId, tipo, delta) {
+  const today = getToday();
+  if (!state.ruta[today]) state.ruta[today] = { zonaId: getZonaHoy(), entregas: {} };
+  if (!state.ruta[today].entregas[clienteId]) {
+    const cli = state.clientes.find(c => c.id === clienteId);
+    state.ruta[today].entregas[clienteId] = { bid5: cli?.bidHab||1, bid10:0, entregado:false };
+  }
+  const r = state.ruta[today].entregas[clienteId];
+  if (tipo === 5)  r.bid5  = Math.max(0, (r.bid5  || 0) + delta);
+  if (tipo === 10) r.bid10 = Math.max(0, (r.bid10 || 0) + delta);
+
+  // Actualizar UI sin re-render completo
+  const el5  = document.getElementById(`bid5-${clienteId}`);
+  const el10 = document.getElementById(`bid10-${clienteId}`);
+  if (el5)  el5.textContent  = r.bid5;
+  if (el10) el10.textContent = r.bid10;
+
+  // Guardar si ya fue entregado
+  if (r.entregado) {
+    try { await guardarEntrega(clienteId, r); } catch(e) { console.error(e); }
+    renderStats();
+  }
+}
+
+async function setPago(clienteId, pago) {
+  const today = getToday();
+  if (!state.ruta[today]?.entregas[clienteId]) return;
+  state.ruta[today].entregas[clienteId].pago = pago;
+  try { await guardarEntrega(clienteId, state.ruta[today].entregas[clienteId]); } catch(e) { console.error(e); }
+  renderRuta();
+}
+
+async function setDev(clienteId, tipo, delta) {
+  const today = getToday();
+  if (!state.ruta[today]?.entregas[clienteId]) return;
+  const r = state.ruta[today].entregas[clienteId];
+  if (tipo === 'bidones')  r.devBidones  = Math.max(0, (r.devBidones  || 0) + delta);
+  if (tipo === 'canillas') r.devCanillas = Math.max(0, (r.devCanillas || 0) + delta);
+  const elB = document.getElementById(`devBid-${clienteId}`);
+  const elC = document.getElementById(`devCan-${clienteId}`);
+  if (elB) elB.textContent = r.devBidones || 0;
+  if (elC) elC.textContent = r.devCanillas || 0;
+  try { await guardarEntrega(clienteId, r); } catch(e) { console.error(e); }
+}
+
+// ─── Stats ───────────────────────────────────────────────────────
+function renderStats() {
+  const today    = getToday();
+  const entregas = state.ruta[today]?.entregas || {};
+  let totalEntregas = 0, totalBid5 = 0, totalBid10 = 0, totalPesos = 0;
+
+  Object.values(entregas).forEach(r => {
+    if (r.entregado) {
+      totalEntregas++;
+      totalBid5  += r.bid5  || 0;
+      totalBid10 += r.bid10 || 0;
+      if (r.pago !== 'pendiente') totalPesos += calcularTotal(r.bid5||0, r.bid10||0);
+    }
   });
 
-  const htmlFechas = Object.keys(porFecha)
-    .sort((a,b) => b.localeCompare(a))
-    .map(fecha => {
-      const zonasFecha = porFecha[fecha];
-      const totalDia   = Object.values(zonasFecha).flat().reduce((s,e) => s+calcularTotal(e.bid5||0,e.bid10||0), 0);
-      const totalEfDia = Object.values(zonasFecha).flat().filter(e=>(e.pago||'efectivo')==='efectivo').reduce((s,e) => s+calcularTotal(e.bid5||0,e.bid10||0), 0);
-      const totalTrDia = Object.values(zonasFecha).flat().filter(e=>e.pago==='transferencia').reduce((s,e) => s+calcularTotal(e.bid5||0,e.bid10||0), 0);
-      const totalCli   = Object.values(zonasFecha).flat().length;
+  document.getElementById('stat-entregas').textContent = totalEntregas;
+  document.getElementById('stat-bid5').textContent     = totalBid5;
+  document.getElementById('stat-bid10').textContent    = totalBid10;
+  document.getElementById('stat-total').textContent    = formatPeso(totalPesos);
+}
 
-      return `
-        <div class="hist-fecha-grupo">
-          <div class="hist-fecha-header">
-            <div class="hist-fecha-title">${formatDate(fecha)}</div>
-            <div class="hist-fecha-sub">${totalCli} entregas · ${formatPeso(totalDia)}</div>
-            <div class="hist-fecha-desglose">
-              <span class="desglose-ef">💵 ${formatPeso(totalEfDia)}</span>
-              <span class="desglose-tr">🔵 ${formatPeso(totalTrDia)}</span>
+// ─── Historial ───────────────────────────────────────────────────
+function renderHistorial() {
+  const list = document.getElementById('hist-list');
+
+  if (!state.historial.length) {
+    list.innerHTML = '<div class="empty">Todavía no hay historial de entregas.</div>';
+    return;
+  }
+
+  list.innerHTML = state.historial.map((h, idx) => {
+    const uid = 'h' + idx;
+    const total = h.entregas.reduce((s, e) => e.entregado ? s + calcularTotal(e.bid5||0, e.bid10||0) : s, 0);
+    const efectivo = h.entregas.filter(e => e.entregado && e.pago === 'efectivo')
+                                .reduce((s,e) => s + calcularTotal(e.bid5||0,e.bid10||0), 0);
+    const transf   = h.entregas.filter(e => e.entregado && e.pago === 'transferencia')
+                                .reduce((s,e) => s + calcularTotal(e.bid5||0,e.bid10||0), 0);
+    const pendAmt  = h.entregas.filter(e => e.entregado && e.pago === 'pendiente')
+                                .reduce((s,e) => s + calcularTotal(e.bid5||0,e.bid10||0), 0);
+    const nEntregados = h.entregas.filter(e => e.entregado).length;
+
+    const [anio, mes, dia] = h.fecha.split('-');
+    const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+    const fechaStr = `${dia} ${meses[parseInt(mes)-1]} ${anio}`;
+
+    return `
+    <div class="hist-item">
+      <div class="hist-header" onclick="toggleHist('${uid}')">
+        <div>
+          <div style="font-weight:600;">${fechaStr}</div>
+          <div style="font-size:12px;color:#888;">${h.zona} · ${nEntregados} entregas</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <strong>${formatPeso(total)}</strong>
+          <i class="ti ti-chevron-right hist-arrow" id="hist-arrow-${uid}"></i>
+        </div>
+      </div>
+      <div class="hist-body" id="hist-body-${uid}" style="display:none;">
+        ${h.entregas.filter(e => e.entregado).map(e => {
+          const tot = calcularTotal(e.bid5||0, e.bid10||0);
+          const badge = e.pago === 'efectivo'
+            ? '<span class="pago-badge pago-efec">💵 Efectivo</span>'
+            : e.pago === 'transferencia'
+              ? '<span class="pago-badge pago-tr">🔵 Transferencia</span>'
+              : e.pago === 'pendiente'
+                ? '<span class="pago-badge pago-pend">⏳ Pendiente</span>'
+                : '';
+          return `
+          <div class="hist-row">
+            <div>
+              <div style="font-size:14px;">${e.nombre}</div>
+              <div style="font-size:12px;color:#888;">${e.bid5||0}×5L + ${e.bid10||0}×10L ${badge}</div>
             </div>
-          </div>
-          ${Object.keys(zonasFecha).map((znombre, idx) => {
-            const ents      = zonasFecha[znombre];
-            const totalZona = ents.reduce((s,e) => s+calcularTotal(e.bid5||0,e.bid10||0), 0);
-            const efZona    = ents.filter(e=>(e.pago||'efectivo')==='efectivo').reduce((s,e) => s+calcularTotal(e.bid5||0,e.bid10||0), 0);
-            const trZona    = ents.filter(e=>e.pago==='transferencia').reduce((s,e) => s+calcularTotal(e.bid5||0,e.bid10||0), 0);
-            const uid       = fecha.replace(/-/g,'') + idx;
-            return `
-              <div class="hist-zona-card">
-                <div class="hist-head" onclick="toggleHist('${uid}')">
-                  <div style="display:flex;align-items:center;gap:8px;">
-                    <span class="tag tag-blue">📍 ${znombre}</span>
-                  </div>
-                  <div style="display:flex;align-items:center;gap:10px;">
-                    <span class="hist-zona-total">${formatPeso(totalZona)}</span>
-                    <span class="hist-arrow" id="hist-arrow-${uid}">›</span>
-                  </div>
-                </div>
-                <div id="hist-body-${uid}" class="hist-body" style="display:none;">
-                  ${ents.map(e => {
-                    const subtotal  = calcularTotal(e.bid5||0,e.bid10||0);
-                    const pagoIcon  = e.pago==='transferencia'?'🔵':e.pago==='pendiente'?'⏳':'💵';
-                    const pagoTexto = e.pago==='transferencia'?'Transferencia':e.pago==='pendiente'?'Pendiente':'Efectivo';
-                    return `
-                      <div class="hist-row">
-                        <div>
-                          <div>${e.clientes?.nombre||'Cliente'}</div>
-                          <div style="font-size:11px;color:#888;margin-top:2px;">${pagoIcon} ${pagoTexto}</div>
-                          ${(e.dev_bidones||0)>0||(e.dev_canillas||0)>0?`<div style="font-size:11px;color:#888;margin-top:2px;">${e.dev_bidones>0?`🪣 ${e.dev_bidones} bid. `:''}${e.dev_canillas>0?`🚰 ${e.dev_canillas} can.`:''}</div>`:''}
-                        </div>
-                        <div class="hist-row-right">
-                          <span class="hist-bid-detail">${e.bid5>0?e.bid5+'×5lts ':''} ${e.bid10>0?e.bid10+'×10lts':''}</span>
-                          <span class="badge-ok">${formatPeso(subtotal)}</span>
-                        </div>
-                      </div>`;
-                  }).join('')}
-                  <div class="hist-row" style="padding:8px 0 4px;font-size:12px;">
-                    <span style="color:#888;">💵 Efectivo</span><span style="color:#555;">${formatPeso(efZona)}</span>
-                  </div>
-                  <div class="hist-row" style="padding:4px 0 8px;font-size:12px;">
-                    <span style="color:#888;">🔵 Transferencia</span><span style="color:#555;">${formatPeso(trZona)}</span>
-                  </div>
-                  <div class="hist-row hist-row-total">
-                    <strong>Total zona</strong><strong>${formatPeso(totalZona)}</strong>
-                  </div>
-                </div>
-              </div>`;
-          }).join('')}
-        </div>`;
-    }).join('');
-
-  document.getElementById('hist-list').innerHTML = botonLunes + htmlFechas;
+            <span style="font-weight:600;">${formatPeso(tot)}</span>
+          </div>`;
+        }).join('')}
+        <div class="hist-row hist-row-total">
+          <span>💵 Efectivo</span><span>${formatPeso(efectivo)}</span>
+        </div>
+        <div class="hist-row hist-row-total">
+          <span>🔵 Transferencia</span><span>${formatPeso(transf)}</span>
+        </div>
+        ${pendAmt ? `<div class="hist-row hist-row-total"><span>⏳ Pendiente</span><span>${formatPeso(pendAmt)}</span></div>` : ''}
+        <div class="hist-row hist-row-total" style="font-weight:700;font-size:15px;">
+          <span>Total</span><span>${formatPeso(total)}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function toggleHist(uid) {
-  const body  = document.getElementById('hist-body-'  + uid);
+  const body  = document.getElementById('hist-body-' + uid);
   const arrow = document.getElementById('hist-arrow-' + uid);
   const open  = body.style.display !== 'none';
-  body.style.display    = open ? 'none' : 'block';
+  body.style.display  = open ? 'none' : 'block';
   arrow.style.transform = open ? '' : 'rotate(90deg)';
 }
 
-// ─── Cobros pendientes ────────────────────────────────────────
+// ─── Cobros pendientes ────────────────────────────────────────────
 function renderCobrosPendientes() {
-  const list    = document.getElementById('pendientes-list');
-  const pending = historial.filter(e => e.pago === 'pendiente');
+  const list = document.getElementById('pendientes-list');
 
-  if (!pending.length) { list.innerHTML = '<div class="empty">No hay cobros pendientes. 🎉</div>'; return; }
-
-  const porZona = {};
-  pending.forEach(e => {
-    const znombre = e.clientes?.zonas?.nombre || 'Sin zona';
-    if (!porZona[znombre]) porZona[znombre] = [];
-    const cliente = clientes.find(c => c.id === e.cliente_id);
-    porZona[znombre].push({ ...e, tel: cliente?.telefono || null, cnombre: e.clientes?.nombre || 'Cliente' });
+  const pendientes = [];
+  state.historial.forEach(h => {
+    h.entregas.forEach(e => {
+      if (e.entregado && e.pago === 'pendiente') {
+        pendientes.push({
+          nombre: e.nombre,
+          bid5: e.bid5 || 0,
+          bid10: e.bid10 || 0,
+          fecha: h.fecha,
+          zona: h.zona,
+          total: calcularTotal(e.bid5||0, e.bid10||0),
+          tel: state.clientes.find(c => c.nombre === e.nombre)?.tel || null
+        });
+      }
+    });
   });
 
-  const totalGeneral = pending.reduce((s,e) => s+calcularTotal(e.bid5||0,e.bid10||0), 0);
+  if (!pendientes.length) {
+    list.innerHTML = '<div class="empty"><i class="ti ti-check" style="font-size:32px;opacity:.3;display:block;margin-bottom:8px;"></i>No hay cobros pendientes 🎉</div>';
+    return;
+  }
+
+  const totalGeneral = pendientes.reduce((s, p) => s + p.total, 0);
 
   list.innerHTML = `
     <div class="pend-total-banner">
-      <span>Total a cobrar</span>
+      <span>Total pendiente</span>
       <strong>${formatPeso(totalGeneral)}</strong>
     </div>
-    ${Object.keys(porZona).map(znombre => {
-      const ents      = porZona[znombre];
-      const totalZona = ents.reduce((s,e) => s+calcularTotal(e.bid5||0,e.bid10||0), 0);
+    ${pendientes.map(p => {
+      const [anio, mes, dia] = p.fecha.split('-');
+      const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+      const fechaStr = `${dia} ${meses[parseInt(mes)-1]}`;
       return `
-        <div class="pend-zona-grupo">
-          <div class="pend-zona-header">
-            <span class="tag tag-blue">📍 ${znombre}</span>
-            <span class="pend-zona-total">${formatPeso(totalZona)}</span>
+      <div class="pend-card">
+        <div class="pend-row">
+          <div>
+            <div style="font-weight:600;">${p.nombre}</div>
+            <div style="font-size:12px;color:#888;">${fechaStr} · ${p.zona}</div>
+            <div style="font-size:12px;color:#888;">${p.bid5}×5L + ${p.bid10}×10L</div>
+            ${p.tel ? `<div style="font-size:12px;margin-top:4px;"><a href="tel:${p.tel}" style="color:#0C447C;">${p.tel}</a></div>` : ''}
           </div>
-          ${ents.map(e => {
-            const bid5txt  = e.bid5  > 0 ? `${e.bid5} bidón${e.bid5>1?'es':''} 5lts`   : '';
-            const bid10txt = e.bid10 > 0 ? `${e.bid10} bidón${e.bid10>1?'es':''} 10lts` : '';
-            const bidTxt   = [bid5txt,bid10txt].filter(Boolean).join(' y ');
-            return `
-              <div class="pend-card">
-                <div class="pend-card-top">
-                  <div class="pend-card-info">
-                    <div class="pend-card-nombre">${e.cnombre}</div>
-                    <div class="pend-card-detalle">Entregado el ${formatDate(e.fecha)}</div>
-                    <div class="pend-card-detalle">${bidTxt}</div>
-                  </div>
-                  <div class="pend-card-right">
-                    <span class="pend-monto">${formatPeso(calcularTotal(e.bid5||0,e.bid10||0))}</span>
-                  </div>
-                </div>
-                <div class="pend-card-actions">
-                  ${e.tel ? `<a class="pend-action-btn pend-tel-btn" href="tel:${e.tel.replace(/\s/g,'')}">📞 Llamar</a>` : ''}
-                  <button class="pend-action-btn pend-cobrado-btn" onclick="marcarCobrado('${e.id}')">✓ Cobrado</button>
-                </div>
-              </div>`;
-          }).join('')}
-        </div>`;
+          <div class="pend-monto">${formatPeso(p.total)}</div>
+        </div>
+      </div>`;
     }).join('')}`;
 }
 
-async function marcarCobrado(entregaId) {
-  if (!confirm('¿Marcar este cobro como recibido?')) return;
-  showLoading(true);
-  try {
-    await db(`entregas?id=eq.${entregaId}`, { method:'PATCH', body: JSON.stringify({ pago: 'efectivo' }) });
-    await recargarHistorial();
-  } catch(e) { alert('Error al actualizar cobro.'); }
-  finally { showLoading(false); }
+// ─── Clientes ────────────────────────────────────────────────────
+function renderClientes() {
+  const list = document.getElementById('clientes-list');
+  if (!state.clientes.length) {
+    list.innerHTML = '<div class="empty">No hay clientes. Agregá el primero.</div>';
+    return;
+  }
+
+  const porZona = {};
+  state.clientes.forEach(c => {
+    const z = state.zonas.find(z => z.id === c.zonaId)?.nombre || 'Sin zona';
+    if (!porZona[z]) porZona[z] = [];
+    porZona[z].push(c);
+  });
+
+  list.innerHTML = Object.entries(porZona).map(([zona, clientes]) => `
+    <div style="margin-bottom:16px;">
+      <div class="zona-header">${zona}</div>
+      ${clientes.map(c => `
+        <div class="item-card">
+          <div class="item-info">
+            <div class="item-nombre">${c.nombre}</div>
+            <div class="item-sub"><i class="ti ti-map-pin"></i> ${c.dir}</div>
+            ${c.tel ? `<div class="item-sub"><i class="ti ti-phone"></i> ${c.tel}</div>` : ''}
+            <div class="item-sub"><i class="ti ti-droplet"></i> ${c.bidHab} bidón(es) 5L habitual(es)</div>
+          </div>
+          <div class="item-actions">
+            <button class="icon-btn" onclick="editCliente('${c.id}')"><i class="ti ti-pencil"></i></button>
+            <button class="icon-btn icon-btn-danger" onclick="deleteCliente('${c.id}')"><i class="ti ti-trash"></i></button>
+          </div>
+        </div>`).join('')}
+    </div>`).join('');
 }
 
-// ─── Panel Admin ──────────────────────────────────────────────
-function showAdminTab(tab, btn) {
-  document.querySelectorAll('#screen-admin .section').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('#screen-admin .nav-item').forEach(t => t.classList.remove('active'));
-  document.getElementById('admin-sec-' + tab).classList.add('active');
-  btn.classList.add('active');
-  if (tab === 'resumen')   cargarAdminResumen();
-  if (tab === 'empleados') cargarAdminEmpleados();
+function showAddCliente() {
+  openModal(`
+    <div class="modal-title">Nuevo cliente</div>
+    <div class="field-group">
+      <label class="field-label">Nombre *</label>
+      <input id="nc-nombre" class="input" placeholder="Ej: María García">
+    </div>
+    <div class="field-group">
+      <label class="field-label">Dirección *</label>
+      <input id="nc-dir" class="input" placeholder="Ej: Av. San Martín 1234">
+    </div>
+    <div class="field-group">
+      <label class="field-label">Teléfono</label>
+      <input id="nc-tel" class="input" type="tel" placeholder="Ej: 11 4523-1890">
+    </div>
+    <div class="field-group">
+      <label class="field-label">Bidones 5L habituales</label>
+      <input id="nc-bid" class="input" type="number" min="0" value="1">
+    </div>
+    <div class="field-group">
+      <label class="field-label">Zona</label>
+      <select id="nc-zona" class="input">
+        <option value="">Sin zona</option>
+        ${state.zonas.map(z => `<option value="${z.id}">${z.nombre}</option>`).join('')}
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveCliente()">Guardar</button>
+    </div>
+  `);
 }
+
+async function saveCliente() {
+  const nombre = document.getElementById('nc-nombre').value.trim();
+  const dir    = document.getElementById('nc-dir').value.trim();
+  const tel    = document.getElementById('nc-tel').value.trim();
+  const bid    = parseInt(document.getElementById('nc-bid').value) || 1;
+  const zonaId = document.getElementById('nc-zona').value || null;
+  if (!nombre || !dir) { alert('Nombre y dirección son obligatorios.'); return; }
+
+  showLoading(true);
+  try {
+    const rows = await supa('clientes', {
+      method: 'POST',
+      body: JSON.stringify({
+        nombre, direccion: dir, telefono: tel || null,
+        bidones_habituales: bid,
+        orden: state.clientes.length + 1,
+        zona_id: zonaId,
+        usuario_id: currentUser.id
+      })
+    });
+    state.clientes.push({
+      id: rows[0].id, nombre, dir, tel: tel||'', bidHab: bid,
+      orden: state.clientes.length + 1, zonaId
+    });
+    closeModal();
+    renderClientes();
+    renderRuta();
+  } catch(e) { alert('Error al guardar cliente.'); console.error(e); }
+  showLoading(false);
+}
+
+function editCliente(id) {
+  const c = state.clientes.find(c => c.id === id);
+  if (!c) return;
+  openModal(`
+    <div class="modal-title">Editar cliente</div>
+    <div class="field-group">
+      <label class="field-label">Nombre *</label>
+      <input id="ec-nombre" class="input" value="${c.nombre}">
+    </div>
+    <div class="field-group">
+      <label class="field-label">Dirección *</label>
+      <input id="ec-dir" class="input" value="${c.dir}">
+    </div>
+    <div class="field-group">
+      <label class="field-label">Teléfono</label>
+      <input id="ec-tel" class="input" type="tel" value="${c.tel||''}">
+    </div>
+    <div class="field-group">
+      <label class="field-label">Bidones 5L habituales</label>
+      <input id="ec-bid" class="input" type="number" min="0" value="${c.bidHab}">
+    </div>
+    <div class="field-group">
+      <label class="field-label">Zona</label>
+      <select id="ec-zona" class="input">
+        <option value="">Sin zona</option>
+        ${state.zonas.map(z => `<option value="${z.id}" ${z.id === c.zonaId ? 'selected' : ''}>${z.nombre}</option>`).join('')}
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="updateCliente('${id}')">Guardar</button>
+    </div>
+  `);
+}
+
+async function updateCliente(id) {
+  const nombre = document.getElementById('ec-nombre').value.trim();
+  const dir    = document.getElementById('ec-dir').value.trim();
+  const tel    = document.getElementById('ec-tel').value.trim();
+  const bid    = parseInt(document.getElementById('ec-bid').value) || 1;
+  const zonaId = document.getElementById('ec-zona').value || null;
+  if (!nombre || !dir) { alert('Nombre y dirección son obligatorios.'); return; }
+
+  showLoading(true);
+  try {
+    await supa(`clientes?id=eq.${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ nombre, direccion: dir, telefono: tel||null, bidones_habituales: bid, zona_id: zonaId })
+    });
+    const idx = state.clientes.findIndex(c => c.id === id);
+    if (idx >= 0) state.clientes[idx] = { ...state.clientes[idx], nombre, dir, tel, bidHab: bid, zonaId };
+    closeModal();
+    renderClientes();
+    renderRuta();
+  } catch(e) { alert('Error al actualizar cliente.'); console.error(e); }
+  showLoading(false);
+}
+
+async function deleteCliente(id) {
+  if (!confirm('¿Eliminar este cliente? Se borrarán todas sus entregas.')) return;
+  showLoading(true);
+  try {
+    await supa(`clientes?id=eq.${id}`, { method: 'DELETE' });
+    state.clientes = state.clientes.filter(c => c.id !== id);
+    renderClientes();
+    renderRuta();
+  } catch(e) { alert('Error al eliminar cliente.'); console.error(e); }
+  showLoading(false);
+}
+
+// ─── Zonas ──────────────────────────────────────────────────────
+function renderZonas() {
+  const list = document.getElementById('zonas-list');
+  if (!state.zonas.length) {
+    list.innerHTML = '<div class="empty">No hay zonas. Agregá la primera.</div>';
+    return;
+  }
+  list.innerHTML = state.zonas.map(z => {
+    const cant = state.clientes.filter(c => c.zonaId === z.id).length;
+    return `
+    <div class="item-card">
+      <div class="item-info">
+        <div class="item-nombre"><i class="ti ti-map-pin"></i> ${z.nombre}</div>
+        <div class="item-sub">${cant} cliente(s)</div>
+      </div>
+      <div class="item-actions">
+        <button class="icon-btn" onclick="editZona('${z.id}')"><i class="ti ti-pencil"></i></button>
+        <button class="icon-btn icon-btn-danger" onclick="deleteZona('${z.id}')"><i class="ti ti-trash"></i></button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function showAddZona() {
+  openModal(`
+    <div class="modal-title">Nueva zona</div>
+    <div class="field-group">
+      <label class="field-label">Nombre *</label>
+      <input id="nz-nombre" class="input" placeholder="Ej: Barrio Norte">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveZona()">Guardar</button>
+    </div>
+  `);
+}
+
+async function saveZona() {
+  const nombre = document.getElementById('nz-nombre').value.trim();
+  if (!nombre) { alert('El nombre es obligatorio.'); return; }
+  showLoading(true);
+  try {
+    const rows = await supa('zonas', {
+      method: 'POST',
+      body: JSON.stringify({ nombre, usuario_id: currentUser.id })
+    });
+    state.zonas.push({ id: rows[0].id, nombre });
+    closeModal();
+    renderZonas();
+    renderSelectorZona();
+  } catch(e) { alert('Error al guardar zona.'); console.error(e); }
+  showLoading(false);
+}
+
+function editZona(id) {
+  const z = state.zonas.find(z => z.id === id);
+  if (!z) return;
+  openModal(`
+    <div class="modal-title">Editar zona</div>
+    <div class="field-group">
+      <label class="field-label">Nombre *</label>
+      <input id="ez-nombre" class="input" value="${z.nombre}">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="updateZona('${id}')">Guardar</button>
+    </div>
+  `);
+}
+
+async function updateZona(id) {
+  const nombre = document.getElementById('ez-nombre').value.trim();
+  if (!nombre) { alert('El nombre es obligatorio.'); return; }
+  showLoading(true);
+  try {
+    await supa(`zonas?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ nombre }) });
+    const idx = state.zonas.findIndex(z => z.id === id);
+    if (idx >= 0) state.zonas[idx].nombre = nombre;
+    closeModal();
+    renderZonas();
+    renderSelectorZona();
+    renderClientes();
+  } catch(e) { alert('Error al actualizar zona.'); console.error(e); }
+  showLoading(false);
+}
+
+async function deleteZona(id) {
+  if (!confirm('¿Eliminar esta zona? Los clientes quedarán sin zona asignada.')) return;
+  showLoading(true);
+  try {
+    await supa(`zonas?id=eq.${id}`, { method: 'DELETE' });
+    state.zonas = state.zonas.filter(z => z.id !== id);
+    state.clientes.forEach(c => { if (c.zonaId === id) c.zonaId = null; });
+    renderZonas();
+    renderClientes();
+    renderSelectorZona();
+  } catch(e) { alert('Error al eliminar zona.'); console.error(e); }
+  showLoading(false);
+}
+
+// ─── Exportar resumen ────────────────────────────────────────────
+function exportarResumen() {
+  const today    = getToday();
+  const zonaId   = getZonaHoy();
+  const zona     = state.zonas.find(z => z.id === zonaId);
+  const entregas = state.ruta[today]?.entregas || {};
+  const clientes = clientesDeZona(zonaId);
+
+  const [anio, mes, dia] = today.split('-');
+  const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const fechaStr = `${dia} de ${meses[parseInt(mes)-1]} de ${anio}`;
+
+  let txt = `📦 TEXALAR REPARTO — ${fechaStr}\n`;
+  txt += `Empleado: ${currentUser.nombre}\n`;
+  txt += `Zona: ${zona?.nombre || '—'}\n`;
+  txt += '─'.repeat(32) + '\n';
+
+  let totalPesos = 0, totalBid5 = 0, totalBid10 = 0;
+  clientes.forEach(c => {
+    const r = entregas[c.id];
+    if (r?.entregado) {
+      const tot = calcularTotal(r.bid5||0, r.bid10||0);
+      totalPesos += tot;
+      totalBid5  += r.bid5  || 0;
+      totalBid10 += r.bid10 || 0;
+      txt += `✅ ${c.nombre}\n`;
+      txt += `   ${r.bid5||0}×5L + ${r.bid10||0}×10L = ${formatPeso(tot)}`;
+      if (r.pago) txt += ` (${r.pago})`;
+      txt += '\n';
+    } else {
+      txt += `⬜ ${c.nombre} — sin entregar\n`;
+    }
+  });
+
+  txt += '─'.repeat(32) + '\n';
+  txt += `Total: ${totalBid5}×5L + ${totalBid10}×10L = ${formatPeso(totalPesos)}\n`;
+
+  if (navigator.share) {
+    navigator.share({ text: txt });
+  } else {
+    navigator.clipboard?.writeText(txt).then(() => alert('Resumen copiado al portapapeles ✅'));
+  }
+}
+
+// ─── Navegación ──────────────────────────────────────────────────
+function showTab(tab, btn) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(t => t.classList.remove('active'));
+  document.getElementById('sec-' + tab).classList.add('active');
+  btn.classList.add('active');
+  const exp = document.getElementById('exportar-wrap');
+  if (exp) exp.style.display = (tab === 'ruta' && getZonaHoy()) ? 'block' : 'none';
+
+  if (tab === 'historial')  renderHistorial();
+  if (tab === 'pendientes') renderCobrosPendientes();
+}
+
+function renderFecha() {
+  const dias   = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  const meses  = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const hoy    = new Date();
+  const str    = `${dias[hoy.getDay()]} ${hoy.getDate()} de ${meses[hoy.getMonth()]}`;
+  document.getElementById('fecha-hoy').textContent  = str;
+  const adminFecha = document.getElementById('admin-fecha');
+  if (adminFecha) adminFecha.textContent = str;
+}
+
+// ─── Modal ──────────────────────────────────────────────────────
+function openModal(html) {
+  document.getElementById('modal-content').innerHTML = html;
+  document.getElementById('modal-overlay').style.display = 'block';
+  document.getElementById('modal').style.display = 'block';
+}
+function closeModal() {
+  document.getElementById('modal-overlay').style.display = 'none';
+  document.getElementById('modal').style.display = 'none';
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  PANEL ADMIN
+// ═══════════════════════════════════════════════════════════════
 
 async function cargarAdmin() {
-  await cargarAdminResumen();
-  await cargarAdminEmpleados();
-}
-
-async function cargarAdminResumen() {
-  const el = document.getElementById('admin-resumen');
-  el.innerHTML = '<div class="empty">Cargando...</div>';
-  try {
-    const today = getToday();
-    const ents  = await db(`entregas?fecha=eq.${today}&entregado=eq.true&select=*,clientes(nombre,usuarios:usuario_id(nombre))`);
-
-    if (!ents.length) { el.innerHTML = '<div class="empty">No hay entregas hoy todavía.</div>'; return; }
-
-    // Agrupar por empleado
-    const porEmpleado = {};
-    ents.forEach(e => {
-      const emp = e.clientes?.usuarios?.nombre || 'Desconocido';
-      if (!porEmpleado[emp]) porEmpleado[emp] = [];
-      porEmpleado[emp].push(e);
-    });
-
-    const totalDia = ents.reduce((s,e) => s+calcularTotal(e.bid5||0,e.bid10||0), 0);
-
-    el.innerHTML = `
-      <div class="pend-total-banner" style="margin-bottom:16px;">
-        <span>Total recaudado hoy</span>
-        <strong>${formatPeso(totalDia)}</strong>
-      </div>
-      ${Object.keys(porEmpleado).map(emp => {
-        const lista   = porEmpleado[emp];
-        const totalEmp = lista.reduce((s,e) => s+calcularTotal(e.bid5||0,e.bid10||0), 0);
-        const totalEf  = lista.filter(e=>(e.pago||'efectivo')==='efectivo').reduce((s,e) => s+calcularTotal(e.bid5||0,e.bid10||0), 0);
-        const totalTr  = lista.filter(e=>e.pago==='transferencia').reduce((s,e) => s+calcularTotal(e.bid5||0,e.bid10||0), 0);
-        return `
-          <div class="hist-zona-card" style="margin-bottom:12px;">
-            <div class="hist-head">
-              <div>
-                <div style="font-weight:600;font-size:14px;">👤 ${emp}</div>
-                <div style="font-size:12px;color:#555;margin-top:4px;">${lista.length} entregas</div>
-              </div>
-              <div style="text-align:right;">
-                <div style="font-weight:700;color:#0C447C;">${formatPeso(totalEmp)}</div>
-                <div style="font-size:11px;color:#888;margin-top:2px;">💵 ${formatPeso(totalEf)} · 🔵 ${formatPeso(totalTr)}</div>
-              </div>
-            </div>
-          </div>`;
-      }).join('')}
-      <button class="exportar-btn" onclick="adminExportarDia()">📋 Exportar resumen del día</button>`;
-  } catch(e) { el.innerHTML = '<div class="empty">Error cargando resumen.</div>'; console.error(e); }
-}
-
-async function cargarAdminEmpleados() {
-  const el = document.getElementById('admin-empleados-list');
-  try {
-    const emps = await db(`usuarios?rol=eq.empleado&select=*`);
-    if (!emps.length) { el.innerHTML = '<div class="empty">No hay empleados todavía.</div>'; return; }
-    el.innerHTML = emps.map(e => `
-      <div class="client-card">
-        <div class="client-avatar">${initials(e.nombre)}</div>
-        <div class="client-info">
-          <div class="client-card-name">${e.nombre}</div>
-          <div class="client-card-detail">Clave: ${e.clave}</div>
-        </div>
-        <button class="del-btn" onclick="adminEliminarEmpleado('${e.id}')">🗑</button>
-      </div>`).join('');
-  } catch(e) { el.innerHTML = '<div class="empty">Error cargando empleados.</div>'; }
-}
-
-async function adminAgregarEmpleado() {
-  const nombre = document.getElementById('admin-emp-nombre').value.trim();
-  const clave  = document.getElementById('admin-emp-clave').value.trim();
-  if (!nombre || !clave) { alert('Completá nombre y contraseña.'); return; }
+  renderFecha();
   showLoading(true);
   try {
-    await db('usuarios', { method:'POST', body: JSON.stringify({ nombre, clave, rol:'empleado' }) });
-    document.getElementById('admin-emp-nombre').value = '';
-    document.getElementById('admin-emp-clave').value  = '';
-    await cargarAdminEmpleados();
-    alert(`Empleado "${nombre}" agregado correctamente.`);
-  } catch(e) { alert('Error al agregar empleado.'); }
-  finally { showLoading(false); }
+    // Cargar todos los empleados
+    const empleados = await supa('usuarios?rol=eq.empleado&select=id,nombre&order=nombre');
+    renderAdminEmpleados(empleados);
+
+    // Resumen de hoy
+    await cargarResumenHoy(empleados);
+
+    // Historial general (últimos 14 días)
+    await cargarHistorialAdmin(empleados);
+  } catch(e) {
+    console.error(e);
+    document.getElementById('admin-resumen-hoy').innerHTML = '<div class="empty">Error al cargar datos.</div>';
+  }
+  showLoading(false);
 }
 
-async function adminEliminarEmpleado(id) {
+async function cargarResumenHoy(empleados) {
+  const today = getToday();
+  const el    = document.getElementById('admin-resumen-hoy');
+
+  try {
+    const entregas = await supa(`entregas?fecha=eq.${today}&select=usuario_id,bid5,bid10,pago,entregado`);
+    if (!entregas.length) {
+      el.innerHTML = '<div class="empty">Sin entregas registradas hoy.</div>';
+      return;
+    }
+
+    let html = '';
+    let totalGeneral = 0;
+
+    empleados.forEach(emp => {
+      const ents = entregas.filter(e => e.usuario_id === emp.id && e.entregado);
+      if (!ents.length) return;
+      const total  = ents.reduce((s,e) => s + calcularTotal(e.bid5||0, e.bid10||0), 0);
+      const efect  = ents.filter(e => e.pago === 'efectivo').reduce((s,e) => s + calcularTotal(e.bid5||0,e.bid10||0), 0);
+      const transf = ents.filter(e => e.pago === 'transferencia').reduce((s,e) => s + calcularTotal(e.bid5||0,e.bid10||0), 0);
+      const pend   = ents.filter(e => e.pago === 'pendiente').reduce((s,e) => s + calcularTotal(e.bid5||0,e.bid10||0), 0);
+      totalGeneral += total;
+
+      html += `
+      <div class="admin-emp-card">
+        <div class="admin-emp-nombre">${emp.nombre}</div>
+        <div class="admin-stat-row"><span>${ents.length} entregas</span><span>${formatPeso(total)}</span></div>
+        ${efect  ? `<div class="admin-stat-row admin-stat-sub"><span>💵 Efectivo</span><span>${formatPeso(efect)}</span></div>` : ''}
+        ${transf ? `<div class="admin-stat-row admin-stat-sub"><span>🔵 Transferencia</span><span>${formatPeso(transf)}</span></div>` : ''}
+        ${pend   ? `<div class="admin-stat-row admin-stat-sub"><span>⏳ Pendiente</span><span>${formatPeso(pend)}</span></div>` : ''}
+      </div>`;
+    });
+
+    html += `<div class="admin-total-banner"><span>Total del día</span><strong>${formatPeso(totalGeneral)}</strong></div>`;
+    el.innerHTML = html;
+
+  } catch(e) {
+    el.innerHTML = '<div class="empty">Error al cargar resumen.</div>';
+    console.error(e);
+  }
+}
+
+async function cargarHistorialAdmin(empleados) {
+  const hace14 = new Date();
+  hace14.setDate(hace14.getDate() - 14);
+  const desde  = hace14.toISOString().slice(0, 10);
+  const today  = getToday();
+  const el     = document.getElementById('admin-historial');
+
+  try {
+    const entregas = await supa(`entregas?fecha=gte.${desde}&fecha=lt.${today}&select=usuario_id,fecha,bid5,bid10,pago,entregado&order=fecha.desc`);
+    if (!entregas.length) {
+      el.innerHTML = '<div class="empty">Sin historial en los últimos 14 días.</div>';
+      return;
+    }
+
+    // Agrupar por fecha
+    const porFecha = {};
+    entregas.forEach(e => {
+      if (!porFecha[e.fecha]) porFecha[e.fecha] = [];
+      porFecha[e.fecha].push(e);
+    });
+
+    el.innerHTML = Object.keys(porFecha).sort().reverse().map(fecha => {
+      const [anio, mes, dia] = fecha.split('-');
+      const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+      const fechaStr = `${dia} ${meses[parseInt(mes)-1]} ${anio}`;
+      const entsF = porFecha[fecha].filter(e => e.entregado);
+      const totalF = entsF.reduce((s,e) => s + calcularTotal(e.bid5||0, e.bid10||0), 0);
+
+      const porEmp = empleados.map(emp => {
+        const ents = entsF.filter(e => e.usuario_id === emp.id);
+        if (!ents.length) return '';
+        const tot = ents.reduce((s,e) => s + calcularTotal(e.bid5||0, e.bid10||0), 0);
+        return `<div class="admin-stat-row admin-stat-sub"><span>${emp.nombre}</span><span>${formatPeso(tot)}</span></div>`;
+      }).join('');
+
+      return `
+      <div class="admin-hist-item">
+        <div class="admin-stat-row" style="font-weight:600;margin-bottom:4px;">
+          <span>${fechaStr}</span><span>${formatPeso(totalF)}</span>
+        </div>
+        ${porEmp}
+      </div>`;
+    }).join('');
+
+  } catch(e) {
+    el.innerHTML = '<div class="empty">Error al cargar historial.</div>';
+    console.error(e);
+  }
+}
+
+function renderAdminEmpleados(empleados) {
+  const list = document.getElementById('admin-empleados-list');
+  if (!empleados.length) {
+    list.innerHTML = '<div class="empty">No hay empleados registrados.</div>';
+    return;
+  }
+  list.innerHTML = empleados.map(e => `
+    <div class="item-card">
+      <div class="item-info">
+        <div class="item-nombre">${e.nombre}</div>
+        <div class="item-sub">Empleado</div>
+      </div>
+      <button class="icon-btn icon-btn-danger" onclick="deleteEmpleado('${e.id}')"><i class="ti ti-trash"></i></button>
+    </div>`).join('');
+}
+
+function showAddEmpleado() {
+  openModal(`
+    <div class="modal-title">Nuevo empleado</div>
+    <div class="field-group">
+      <label class="field-label">Nombre *</label>
+      <input id="ne-nombre" class="input" placeholder="Ej: Juan López">
+    </div>
+    <div class="field-group">
+      <label class="field-label">Clave *</label>
+      <input id="ne-clave" class="input" type="password" placeholder="Mínimo 4 caracteres">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveEmpleado()">Crear</button>
+    </div>
+  `);
+}
+
+async function saveEmpleado() {
+  const nombre = document.getElementById('ne-nombre').value.trim();
+  const clave  = document.getElementById('ne-clave').value.trim();
+  if (!nombre || !clave) { alert('Nombre y clave son obligatorios.'); return; }
+  if (clave.length < 4)  { alert('La clave debe tener al menos 4 caracteres.'); return; }
+
+  showLoading(true);
+  try {
+    await supa('usuarios', {
+      method: 'POST',
+      body: JSON.stringify({ nombre, clave, rol: 'empleado' })
+    });
+    closeModal();
+    await cargarAdmin();
+  } catch(e) { alert('Error al crear empleado.'); console.error(e); }
+  showLoading(false);
+}
+
+async function deleteEmpleado(id) {
   if (!confirm('¿Eliminar este empleado? Se borrarán todos sus datos.')) return;
   showLoading(true);
   try {
-    await db(`usuarios?id=eq.${id}`, { method:'DELETE', prefer:'return=minimal' });
-    await cargarAdminEmpleados();
-  } catch(e) { alert('Error al eliminar empleado.'); }
-  finally { showLoading(false); }
+    await supa(`usuarios?id=eq.${id}`, { method: 'DELETE' });
+    await cargarAdmin();
+  } catch(e) { alert('Error al eliminar empleado.'); console.error(e); }
+  showLoading(false);
 }
 
-async function adminExportarDia() {
-  const today = getToday();
-  const ents  = await db(`entregas?fecha=eq.${today}&entregado=eq.true&select=*,clientes(nombre,usuarios:usuario_id(nombre))`);
-  if (!ents.length) { alert('No hay entregas hoy.'); return; }
+// ═══════════════════════════════════════════════════════════════
+//  ARRANQUE
+// ═══════════════════════════════════════════════════════════════
 
-  let texto = `TEXALAR REPARTO — ${formatDate(today)}\n${'─'.repeat(30)}\n`;
-  const porEmp = {};
-  ents.forEach(e => {
-    const emp = e.clientes?.usuarios?.nombre || 'Desconocido';
-    if (!porEmp[emp]) porEmp[emp] = [];
-    porEmp[emp].push(e);
-  });
-
-  Object.keys(porEmp).forEach(emp => {
-    const lista = porEmp[emp];
-    const total = lista.reduce((s,e) => s+calcularTotal(e.bid5||0,e.bid10||0), 0);
-    texto += `\n👤 ${emp}\n`;
-    lista.forEach(e => {
-      const pago = e.pago==='transferencia'?'🔵':e.pago==='pendiente'?'⏳':'💵';
-      texto += `  • ${e.clientes?.nombre} ${pago} ${formatPeso(calcularTotal(e.bid5||0,e.bid10||0))}\n`;
-    });
-    texto += `  Subtotal: ${formatPeso(total)}\n`;
-  });
-
-  const totalDia = ents.reduce((s,e) => s+calcularTotal(e.bid5||0,e.bid10||0), 0);
-  texto += `\n${'─'.repeat(30)}\nTOTAL DÍA: ${formatPeso(totalDia)}\n`;
-
-  navigator.clipboard.writeText(texto)
-    .then(() => alert('¡Resumen copiado!'))
-    .catch(() => prompt('Copiá este resumen:', texto));
-}
-
-// ─── Arranque ─────────────────────────────────────────────────
-const savedUser = localStorage.getItem('texalar_user');
-if (savedUser) {
-  currentUser = JSON.parse(savedUser);
-  if (currentUser.rol === 'admin') {
-    showScreen('admin');
-    cargarAdmin();
-  } else {
-    showScreen('app');
-    cargarDatos();
+(async () => {
+  const saved = localStorage.getItem('texalar_user');
+  if (saved) {
+    try {
+      currentUser = JSON.parse(saved);
+      await iniciarSesion();
+    } catch(e) {
+      localStorage.removeItem('texalar_user');
+    }
   }
-}
+})();
