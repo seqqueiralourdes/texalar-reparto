@@ -353,6 +353,13 @@ function renderRuta() {
   renderStats();
 }
 
+function cambiarDev(id, tipo, delta) {
+  const today = getToday();
+  if (!state.ruta[today].entregas[id]) return;
+  state.ruta[today].entregas[id][tipo] = Math.max(0, (state.ruta[today].entregas[id][tipo]||0) + delta);
+  saveState(); renderRuta();
+}
+
 function setPago(id, metodo) {
   const today = getToday();
   if (!state.ruta[today].entregas[id]) return;
