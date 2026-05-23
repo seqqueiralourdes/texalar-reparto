@@ -690,6 +690,11 @@ function marcarCobrado(hIdx, eIdx) {
 }
 
 loadState();
+const today = getToday();
+if (state.ruta[today]) {
+  delete state.ruta[today];
+  saveState();
+}
 renderFecha();
 renderSelectorZona();
 renderOpcionesZona();
