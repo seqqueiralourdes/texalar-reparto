@@ -62,15 +62,15 @@ function actualizarHistorialHoy() {
     state.historial = state.historial.filter(h => h.fecha !== today || h.zona !== zonaHoy);
     saveState(); renderHistorial(); return;
   }
-bid5: entregas[c.id]?.bid5 || 0,
+
+  const resumen = clientesZona.map(c => ({
+    nombre: c.nombre,
+    bid5: entregas[c.id]?.bid5 || 0,
     bid10: entregas[c.id]?.bid10 || 0,
     entregado: entregas[c.id]?.entregado || false,
     pago: entregas[c.id]?.pago || null,
     devBidones: entregas[c.id]?.devBidones || 0,
     devCanillas: entregas[c.id]?.devCanillas || 0
-  const resumen = clientesZona.map(c => ({
-    nombre: c.nombre,
-  
   }));
 
   const idx = state.historial.findIndex(h => h.fecha === today && h.zona === zonaHoy);
@@ -550,8 +550,8 @@ function renderHistorial() {
                         </div>
                         ${(e.devBidones||0) > 0 || (e.devCanillas||0) > 0 ? `
                         <div style="font-size:11px;color:#888;margin-top:3px;text-align:right;">
-                          ${e.devBidones>0?`🪣 ${e.devBidones} bid. `:''}${e.devCanillas>0?`🚰 ${e.devCanillas} can.`:''}
-                        </div>
+                         ${e.devBidones>0?`🪣 ${e.devBidones} bid. `:''}${e.devCanillas>0?`🚰 ${e.devCanillas} can.`:''}
+                        </div>` : ''}
                       </div>`;
                   }).join('')}
                   <div class="hist-row" style="padding:8px 0 4px;">
