@@ -852,6 +852,18 @@ body {
   color: #0C447C;
 }
 
+.pago-pend {
+  background: #FFF8E6;
+  color: #7A5C00;
+}
+
+.pago-btn-pendiente {
+  border-color: #F0D080;
+  background: #FFF8E6;
+  color: #7A5C00;
+  font-weight: 600;
+}
+
 /* ── Desglose en header ── */
 .hstat-desglose {
   margin-top: 4px;
