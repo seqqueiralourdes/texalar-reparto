@@ -610,6 +610,7 @@ const htmlFechas = Object.keys(porFecha)
           }).join('')}
         </div>`;
     }).join('');
+    document.getElementById('hist-list').innerHTML = botonLunes + htmlFechas;
 }
 
 function toggleHist(uid) {
