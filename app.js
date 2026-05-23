@@ -551,6 +551,7 @@ function showTab(tab, btn) {
   btn.classList.add('active');
   const exportarWrap = document.getElementById('exportar-wrap');
   if (exportarWrap) exportarWrap.style.display = tab === 'ruta' && getZonaHoy() ? 'block' : 'none';
+  if (tab === 'pendientes') renderCobrosPendientes();
 }
 
 function renderFecha() {
@@ -558,6 +559,68 @@ function renderFecha() {
   const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
   const hoy = new Date();
   document.getElementById('fecha-hoy').textContent = `${dias[hoy.getDay()]} ${hoy.getDate()} de ${meses[hoy.getMonth()]}`;
+}
+
+// ─── Cobros pendientes ───────────────────────────────────────
+
+function renderCobrosPendientes() {
+  const list = document.getElementById('pendientes-list');
+
+  // Juntar todos los pendientes del historial agrupados por zona
+  const porZona = {};
+  state.historial.forEach(h => {
+    h.entregas.forEach(e => {
+      if (e.entregado && e.pago === 'pendiente') {
+        if (!porZona[h.zona]) porZona[h.zona] = [];
+        porZona[h.zona].push({
+          nombre: e.nombre,
+          bid5: e.bid5 || 0,
+          bid10: e.bid10 || 0,
+          fecha: h.fecha,
+          total: calcularTotal(e.bid5||0, e.bid10||0)
+        });
+      }
+    });
+  });
+
+  const zonas = Object.keys(porZona);
+
+  if (!zonas.length) {
+    list.innerHTML = '<div class="empty">No hay cobros pendientes. 🎉</div>';
+    return;
+  }
+
+  const totalGeneral = zonas.reduce((s, z) =>
+    s + porZona[z].reduce((ss, e) => ss + e.total, 0), 0);
+
+  list.innerHTML = `
+    <div class="pend-total-banner">
+      <span>Total a cobrar</span>
+      <strong>${formatPeso(totalGeneral)}</strong>
+    </div>
+    ${zonas.map(zona => {
+      const clientes = porZona[zona];
+      const totalZona = clientes.reduce((s,c) => s + c.total, 0);
+      return `
+        <div class="pend-zona-grupo">
+          <div class="pend-zona-header">
+            <span class="tag tag-blue">📍 ${zona}</span>
+            <span class="pend-zona-total">${formatPeso(totalZona)}</span>
+          </div>
+          ${clientes.map(c => `
+            <div class="pend-card">
+              <div class="pend-card-info">
+                <div class="pend-card-nombre">${c.nombre}</div>
+                <div class="pend-card-detalle">
+                  ${c.bid5>0?`${c.bid5}×5lts `:''}${c.bid10>0?`${c.bid10}×10lts`:''}
+                  · ${formatDate(c.fecha)}
+                </div>
+              </div>
+              <span class="pend-monto">${formatPeso(c.total)}</span>
+            </div>
+          `).join('')}
+        </div>`;
+    }).join('')}`;
 }
 
 loadState();
@@ -569,3 +632,4 @@ renderClientes();
 renderZonas();
 renderHistorial();
 renderStats();
+renderCobrosPendientes();
