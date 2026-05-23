@@ -60,24 +60,35 @@ function renderStats() {
   const entregas = state.ruta[today]?.entregas || {};
   const clientes = zonaHoy ? clientesDeZona(zonaHoy) : [];
   const entregados = clientes.filter(c => entregas[c.id]?.entregado);
-
-  const totalEfectivo = entregados
-    .filter(c => (entregas[c.id]?.pago || 'efectivo') === 'efectivo')
-    .reduce((s,c) => s + calcularTotal(entregas[c.id]?.bid5||0, entregas[c.id]?.bid10||0), 0);
-  const totalTransferencia = entregados
-    .filter(c => entregas[c.id]?.pago === 'transferencia')
-    .reduce((s,c) => s + calcularTotal(entregas[c.id]?.bid5||0, entregas[c.id]?.bid10||0), 0);
-  const totalPesos = totalEfectivo + totalTransferencia;
   const pct = clientes.length ? Math.round((entregados.length / clientes.length) * 100) : 0;
 
   document.getElementById('stat-clientes').textContent = `${entregados.length}/${clientes.length}`;
   document.getElementById('prog-bar').style.width = pct + '%';
   document.getElementById('prog-pct').textContent  = pct + '%';
 
+  // ── Total del DÍA COMPLETO (todas las zonas del historial de hoy) ──
+  const registrosHoy = state.historial.filter(h => h.fecha === today);
+  const todasEntregas = registrosHoy.flatMap(h => h.entregas.filter(e => e.entregado));
+
+  // Sumar también la zona en curso (aún no guardada en historial)
+  const entregadosZonaActual = entregados.map(c => entregas[c.id]);
+
+  const todosEfectivo = [
+    ...todasEntregas.filter(e => (e.pago||'efectivo') === 'efectivo'),
+    ...entregadosZonaActual.filter(e => (e.pago||'efectivo') === 'efectivo')
+  ].reduce((s,e) => s + calcularTotal(e.bid5||0, e.bid10||0), 0);
+
+  const todosTransferencia = [
+    ...todasEntregas.filter(e => e.pago === 'transferencia'),
+    ...entregadosZonaActual.filter(e => e.pago === 'transferencia')
+  ].reduce((s,e) => s + calcularTotal(e.bid5||0, e.bid10||0), 0);
+
+  const totalDia = todosEfectivo + todosTransferencia;
+
   // Total con blur
   const totalEl = document.getElementById('stat-total');
   if (totalEl) {
-    totalEl.innerHTML = `<span class="total-prefix">$</span><span class="total-amount" id="total-amount">${Math.round(totalPesos).toLocaleString('es-AR')}</span><button class="total-toggle" onclick="toggleTotal()" aria-label="Mostrar/ocultar total"><i class="ti ti-eye" id="total-icon"></i></button>`;
+    totalEl.innerHTML = `<span class="total-prefix">$</span><span class="total-amount" id="total-amount">${Math.round(totalDia).toLocaleString('es-AR')}</span><button class="total-toggle" onclick="toggleTotal()" aria-label="Mostrar/ocultar total"><i class="ti ti-eye" id="total-icon"></i></button>`;
     if (!totalVisible) {
       const amt = document.getElementById('total-amount');
       if (amt) amt.style.filter = 'blur(4px)';
@@ -86,18 +97,18 @@ function renderStats() {
     }
   }
 
-  // Desglose efectivo / transferencia
+  // Desglose efectivo / transferencia del día
   const desgEl = document.getElementById('stat-desglose');
   if (desgEl) {
     desgEl.innerHTML = `
-      <div class="desglose-item">💵 <span>${formatPeso(totalEfectivo)}</span></div>
-      <div class="desglose-item">🔵 <span>${formatPeso(totalTransferencia)}</span></div>`;
+      <div class="desglose-item">💵 <span>${formatPeso(todosEfectivo)}</span></div>
+      <div class="desglose-item">🔵 <span>${formatPeso(todosTransferencia)}</span></div>`;
     if (!totalVisible) {
       desgEl.querySelectorAll('span').forEach(s => s.style.filter = 'blur(4px)');
     }
   }
 
-  // Devoluciones
+  // Devoluciones de la zona activa
   const totalDevBidones  = clientes.reduce((s,c) => s + (entregas[c.id]?.devBidones||0), 0);
   const totalDevCanillas = clientes.reduce((s,c) => s + (entregas[c.id]?.devCanillas||0), 0);
   const devEl = document.getElementById('stat-devoluciones');
