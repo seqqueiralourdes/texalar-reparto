@@ -346,7 +346,7 @@ function renderRuta() {
   list.innerHTML = clientes.map(c => {
     const r = entregas[c.id] || {};
     const bid5  = r.bid5  ?? c.bidHab;
-    const bid10 = r.bid10 ?? 0;
+    const bid10 = r.bid10 ?? c.bidHab10 ?? 0;
     const total = calcularTotal(bid5, bid10);
 
     return `
