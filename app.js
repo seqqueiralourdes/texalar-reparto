@@ -62,13 +62,15 @@ function actualizarHistorialHoy() {
     state.historial = state.historial.filter(h => h.fecha !== today || h.zona !== zonaHoy);
     saveState(); renderHistorial(); return;
   }
-
-  const resumen = clientesZona.map(c => ({
-    nombre: c.nombre,
-    bid5: entregas[c.id]?.bid5 || 0,
+bid5: entregas[c.id]?.bid5 || 0,
     bid10: entregas[c.id]?.bid10 || 0,
     entregado: entregas[c.id]?.entregado || false,
-    pago: entregas[c.id]?.pago || null
+    pago: entregas[c.id]?.pago || null,
+    devBidones: entregas[c.id]?.devBidones || 0,
+    devCanillas: entregas[c.id]?.devCanillas || 0
+  const resumen = clientesZona.map(c => ({
+    nombre: c.nombre,
+  
   }));
 
   const idx = state.historial.findIndex(h => h.fecha === today && h.zona === zonaHoy);
@@ -104,10 +106,16 @@ function exportarResumen() {
     else totalEfectivo += total;
   });
 
+const totalDevBid = entregados.reduce((s,c) => s + (entregas[c.id]?.devBidones||0), 0);
+  const totalDevCan = entregados.reduce((s,c) => s + (entregas[c.id]?.devCanillas||0), 0);
+
   texto += `${'─'.repeat(30)}\n`;
   texto += `💵 Efectivo: ${formatPeso(totalEfectivo)}\n`;
   texto += `🔵 Transferencia: ${formatPeso(totalTransferencia)}\n`;
   texto += `TOTAL: ${formatPeso(totalEfectivo + totalTransferencia)}\n`;
+  texto += `${'─'.repeat(30)}\n`;
+  texto += `🪣 Bidones recolectados: ${totalDevBid}\n`;
+  texto += `🚰 Canillas recolectadas: ${totalDevCan}\n`;
 
   navigator.clipboard.writeText(texto).then(() => {
     alert('¡Resumen copiado al portapapeles!');
@@ -154,6 +162,16 @@ function renderStats() {
     if (!totalVisible) {
       desgEl.querySelectorAll('span').forEach(s => s.style.filter = 'blur(4px)');
     }
+  }
+
+ const totalDevBidones = clientes.reduce((s,c) => s + (entregas[c.id]?.devBidones||0), 0);
+  const totalDevCanillas = clientes.reduce((s,c) => s + (entregas[c.id]?.devCanillas||0), 0);
+
+  const devEl = document.getElementById('stat-devoluciones');
+  if (devEl) {
+    devEl.innerHTML = `
+      <div class="desglose-item">🪣 ${totalDevBidones} bid. devueltos</div>
+      <div class="desglose-item">🚰 ${totalDevCanillas} canillas devueltas</div>`;
   }
 
   const exportarWrap = document.getElementById('exportar-wrap');
@@ -231,8 +249,7 @@ function initRuta(zona) {
   if (!state.ruta[today].entregas) state.ruta[today].entregas = {};
   clientesDeZona(zona).forEach(c => {
     if (!state.ruta[today].entregas[c.id]) {
-      state.ruta[today].entregas[c.id] = { bid5: 0, bid10: c.bidHab, entregado: false, pago: null };
-    }
+       state.ruta[today].entregas[c.id] = { bid5: 0, bid10: c.bidHab, entregado: false, pago: null, devBidones: 0, devCanillas: 0 };   }
   });
   saveState();
 }
@@ -306,6 +323,24 @@ function renderRuta() {
             <button class="pago-btn ${r.pago==='pendiente'?'pago-btn-pendiente':''}" onclick="setPago(${c.id},'pendiente')">⏳ Pendiente</button>
           </div>
         </div>` : `<div style="margin-bottom:10px;">${pagoLabel}</div>`}
+       <div class="dev-section">
+          <div class="dev-row">
+            <span class="dev-label">🪣 ¿Devuelve bidones?</span>
+            <div class="dev-ctrl">
+              <button class="bid-btn" onclick="cambiarDev(${c.id},'devBidones',-1)" ${done?'disabled':''}>−</button>
+              <span class="bid-num">${r.devBidones||0}</span>
+              <button class="bid-btn" onclick="cambiarDev(${c.id},'devBidones',1)" ${done?'disabled':''}>+</button>
+            </div>
+          </div>
+          <div class="dev-row">
+            <span class="dev-label">🚰 ¿Devuelve canillas?</span>
+            <div class="dev-ctrl">
+              <button class="bid-btn" onclick="cambiarDev(${c.id},'devCanillas',-1)" ${done?'disabled':''}>−</button>
+              <span class="bid-num">${r.devCanillas||0}</span>
+              <button class="bid-btn" onclick="cambiarDev(${c.id},'devCanillas',1)" ${done?'disabled':''}>+</button>
+            </div>
+          </div>
+        </div>
         <div class="card-bottom">
           <div class="subtotal">Subtotal: <strong>${formatPeso(total)}</strong></div>
           <button class="mark-btn ${done?'done':''}" onclick="toggleEntregado(${c.id})" ${!done && !r.pago ? 'disabled title="Seleccioná un método de pago"' : ''}>
@@ -512,6 +547,10 @@ function renderHistorial() {
                         <div class="hist-row-right">
                           <span class="hist-bid-detail">${e.bid5>0?e.bid5+'×5lts ':''} ${e.bid10>0?e.bid10+'×10lts':''}</span>
                           <span class="badge-ok">${formatPeso(subtotal)}</span>
+                        </div>
+                        ${(e.devBidones||0) > 0 || (e.devCanillas||0) > 0 ? `
+                        <div style="font-size:11px;color:#888;margin-top:3px;text-align:right;">
+                          ${e.devBidones>0?`🪣 ${e.devBidones} bid. `:''}${e.devCanillas>0?`🚰 ${e.devCanillas} can.`:''}
                         </div>
                       </div>`;
                   }).join('')}
