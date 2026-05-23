@@ -5,241 +5,203 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#0C447C">
   <title>Texalar Reparto</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-  <!-- Pantalla de login -->
-  <div id="screen-login" class="screen active">
-    <div class="login-wrap">
+  <!-- ═══ PANTALLA DE LOGIN ═══ -->
+  <div id="pantalla-login" class="login-screen">
+    <div class="login-card">
       <div class="login-logo">
-        <div class="login-logo-icon">💧</div>
-        <div class="login-logo-name">Texalar</div>
-        <div class="login-logo-sub">Gestión de reparto</div>
+        <i class="ti ti-droplet"></i>
       </div>
-      <div class="form-card">
-        <div class="form-group">
-          <label class="form-label">Nombre de usuario</label>
-          <input class="form-input" type="text" id="login-nombre" placeholder="Ej: Juan">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Contraseña</label>
-          <input class="form-input" type="password" id="login-clave" placeholder="••••••">
-        </div>
-        <div id="login-error" class="login-error" style="display:none;">Usuario o contraseña incorrectos.</div>
-        <button class="add-btn" onclick="login()">Ingresar</button>
+      <h1 class="login-title">Texalar</h1>
+      <p class="login-sub">Gestión de reparto de agua</p>
+
+      <div id="login-error" class="login-error" style="display:none;"></div>
+
+      <div class="field-group">
+        <label class="field-label">Usuario</label>
+        <input id="login-usuario" class="input" type="text" placeholder="Nombre de usuario" autocomplete="username">
       </div>
+      <div class="field-group">
+        <label class="field-label">Clave</label>
+        <input id="login-clave" class="input" type="password" placeholder="••••••" autocomplete="current-password">
+      </div>
+      <button class="btn btn-primary" style="width:100%;margin-top:8px;" onclick="doLogin()">
+        <i class="ti ti-login"></i> Ingresar
+      </button>
     </div>
   </div>
 
-  <!-- App empleado -->
-  <div id="screen-app" class="screen">
-    <div class="app">
+  <!-- ═══ APP PRINCIPAL (empleado) ═══ -->
+  <div id="pantalla-app" class="app" style="display:none;">
 
-      <!-- Header -->
-      <header class="header">
-        <div class="header-top">
-          <div class="header-logo">
-            <div class="header-logo-icon">💧</div>
-            <span class="header-logo-name">Texalar</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;">
-            <span class="header-date" id="fecha-hoy"></span>
-            <button class="logout-btn" onclick="logout()" title="Cerrar sesión">⎋</button>
-          </div>
+    <!-- Header -->
+    <div class="header">
+      <div class="header-top">
+        <div>
+          <div class="header-title">Texalar Reparto</div>
+          <div id="fecha-hoy" class="header-date"></div>
         </div>
-        <div class="header-user" id="header-user"></div>
-        <div class="header-stats">
-          <div class="hstat">
-            <div class="hstat-label">Clientes visitados</div>
-            <div class="hstat-val" id="stat-clientes">0/0</div>
-          </div>
-          <div class="hstat">
-            <div class="hstat-label">Total recaudado</div>
-            <div class="hstat-val" id="stat-total">$0</div>
-            <div class="hstat-desglose" id="stat-desglose"></div>
-          </div>
-          <div class="hstat hstat-full">
-            <div class="hstat-label">Recolectado hoy</div>
-            <div class="hstat-desglose" id="stat-devoluciones"></div>
-          </div>
-        </div>
-      </header>
-
-      <!-- Barra de progreso -->
-      <div class="progress-wrap">
-        <div class="progress-top">
-          <span>Progreso del reparto</span>
-          <span id="prog-pct">0%</span>
-        </div>
-        <div class="progress-bar-bg">
-          <div class="progress-bar" id="prog-bar" style="width:0%"></div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span id="header-usuario" style="font-size:13px;color:rgba(255,255,255,0.8);"></span>
+          <button class="icon-btn" onclick="doLogout()" title="Salir">
+            <i class="ti ti-logout" style="color:rgba(255,255,255,0.8);font-size:20px;"></i>
+          </button>
         </div>
       </div>
-
-      <!-- Navegación -->
-      <nav class="nav">
-        <button class="nav-item active" onclick="showTab('ruta', this)">
-          <span class="nav-icon">🗺️</span>
-          Ruta
-        </button>
-        <button class="nav-item" onclick="showTab('clientes', this)">
-          <span class="nav-icon">👤</span>
-          Clientes
-        </button>
-        <button class="nav-item" onclick="showTab('zonas', this)">
-          <span class="nav-icon">📍</span>
-          Zonas
-        </button>
-        <button class="nav-item" onclick="showTab('historial', this)">
-          <span class="nav-icon">📋</span>
-          Historial
-        </button>
-        <button class="nav-item" onclick="showTab('pendientes', this)">
-          <span class="nav-icon">⏳</span>
-          Cobros
-        </button>
-      </nav>
-
-      <!-- Sección: Ruta -->
-      <section id="sec-ruta" class="section active">
-        <div id="zona-selector">
-          <div class="sec-title">¿Qué zona hacés hoy?</div>
-          <div id="zonas-opciones"></div>
+      <div class="stats-row">
+        <div class="stat-box">
+          <div class="stat-val" id="stat-entregas">0</div>
+          <div class="stat-lbl">Entregas</div>
         </div>
-        <div id="zona-activa" style="display:none;">
-          <div class="zona-activa-bar">
-            <div class="zona-activa-info">
-              <span class="zona-activa-label">Zona de hoy</span>
-              <span class="zona-activa-nombre" id="zona-activa-nombre"></span>
-            </div>
-            <button class="zona-cambiar-btn" onclick="cambiarZona()">Cambiar</button>
-          </div>
+        <div class="stat-box">
+          <div class="stat-val" id="stat-bid5">0</div>
+          <div class="stat-lbl">Bidones 5L</div>
         </div>
-        <div class="sec-title" style="margin-top:12px;">Ruta de hoy</div>
-        <div id="ruta-list"></div>
-      </section>
-
-      <!-- Botón exportar -->
-      <div class="exportar-wrap" id="exportar-wrap" style="display:none;">
-        <button class="exportar-btn" onclick="exportarResumen()">📋 Exportar resumen del día</button>
+        <div class="stat-box">
+          <div class="stat-val" id="stat-bid10">0</div>
+          <div class="stat-lbl">Bidones 10L</div>
+        </div>
+        <div class="stat-box">
+          <div id="stat-total" class="stat-val">$0</div>
+          <div class="stat-lbl">Total</div>
+        </div>
       </div>
-
-      <!-- Sección: Clientes -->
-      <section id="sec-clientes" class="section">
-        <div class="form-card">
-          <div class="form-title">Agregar cliente</div>
-          <div class="form-group">
-            <label class="form-label">Nombre completo</label>
-            <input class="form-input" type="text" id="inp-nombre" placeholder="Ej: Juan García">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Dirección</label>
-            <input class="form-input" type="text" id="inp-dir" placeholder="Ej: Av. San Martín 1234">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Teléfono</label>
-            <input class="form-input" type="tel" id="inp-tel" placeholder="Ej: 11 1234-5678">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Zona</label>
-            <select class="form-input" id="inp-zona-cliente">
-              <option value="">Seleccioná una zona</option>
-            </select>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Bidones habituales</label>
-              <input class="form-input" type="number" id="inp-bid" placeholder="2" min="1" max="50">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Orden en ruta</label>
-              <input class="form-input" type="number" id="inp-orden" placeholder="Ej: 3" min="1">
-            </div>
-          </div>
-          <button class="add-btn" onclick="agregarCliente()">+ Agregar cliente</button>
-        </div>
-        <div class="sec-title">Clientes activos</div>
-        <div id="clientes-list"></div>
-      </section>
-
-      <!-- Sección: Zonas -->
-      <section id="sec-zonas" class="section">
-        <div class="form-card">
-          <div class="form-title">Agregar zona</div>
-          <div class="form-group">
-            <label class="form-label">Nombre de la zona</label>
-            <input class="form-input" type="text" id="inp-zona" placeholder="Ej: Zona Norte">
-          </div>
-          <button class="add-btn" onclick="agregarZona()">+ Agregar zona</button>
-        </div>
-        <div class="sec-title">Zonas activas</div>
-        <div id="zonas-list"></div>
-      </section>
-
-      <!-- Sección: Historial -->
-      <section id="sec-historial" class="section">
-        <div class="sec-title">Repartos anteriores</div>
-        <div id="hist-list"></div>
-      </section>
-
-      <!-- Sección: Cobros pendientes -->
-      <section id="sec-pendientes" class="section">
-        <div class="sec-title">Cobros pendientes</div>
-        <div id="pendientes-list"></div>
-      </section>
-
     </div>
+
+    <!-- Zona selector -->
+    <div class="zona-bar">
+      <div id="zona-selector-wrap">
+        <div class="zona-label">Zona de hoy</div>
+        <div id="zona-selector"></div>
+      </div>
+      <div id="exportar-wrap" style="display:none;">
+        <button class="btn btn-outline btn-sm" onclick="exportarResumen()">
+          <i class="ti ti-share"></i> Exportar
+        </button>
+      </div>
+    </div>
+
+    <!-- Secciones -->
+    <div id="sec-ruta" class="section active">
+      <div id="ruta-list"></div>
+    </div>
+
+    <div id="sec-historial" class="section">
+      <div id="hist-list"></div>
+    </div>
+
+    <div id="sec-pendientes" class="section">
+      <div id="pendientes-list"></div>
+    </div>
+
+    <div id="sec-clientes" class="section">
+      <div class="section-header">
+        <span>Clientes</span>
+        <button class="btn btn-sm btn-primary" onclick="showAddCliente()">
+          <i class="ti ti-plus"></i> Agregar
+        </button>
+      </div>
+      <div id="clientes-list"></div>
+    </div>
+
+    <div id="sec-zonas" class="section">
+      <div class="section-header">
+        <span>Zonas</span>
+        <button class="btn btn-sm btn-primary" onclick="showAddZona()">
+          <i class="ti ti-plus"></i> Agregar
+        </button>
+      </div>
+      <div id="zonas-list"></div>
+    </div>
+
+    <!-- Nav -->
+    <nav class="nav">
+      <button class="nav-item active" onclick="showTab('ruta',this)">
+        <i class="ti ti-map-route"></i>
+        <span>Ruta</span>
+      </button>
+      <button class="nav-item" onclick="showTab('historial',this)">
+        <i class="ti ti-history"></i>
+        <span>Historial</span>
+      </button>
+      <button class="nav-item" onclick="showTab('pendientes',this)">
+        <i class="ti ti-clock-dollar"></i>
+        <span>Pendientes</span>
+      </button>
+      <button class="nav-item" onclick="showTab('clientes',this)">
+        <i class="ti ti-users"></i>
+        <span>Clientes</span>
+      </button>
+      <button class="nav-item" onclick="showTab('zonas',this)">
+        <i class="ti ti-map-pin"></i>
+        <span>Zonas</span>
+      </button>
+    </nav>
   </div>
 
-  <!-- Panel admin -->
-  <div id="screen-admin" class="screen">
-    <div class="app">
-      <header class="header">
-        <div class="header-top">
-          <div class="header-logo">
-            <div class="header-logo-icon">💧</div>
-            <span class="header-logo-name">Texalar Admin</span>
-          </div>
-          <button class="logout-btn" onclick="logout()">⎋</button>
+  <!-- ═══ PANEL ADMIN ═══ -->
+  <div id="pantalla-admin" class="app" style="display:none;">
+    <div class="header">
+      <div class="header-top">
+        <div>
+          <div class="header-title">Texalar — Admin</div>
+          <div id="admin-fecha" class="header-date"></div>
         </div>
-      </header>
-      <nav class="nav">
-        <button class="nav-item active" onclick="showAdminTab('resumen', this)">
-          <span class="nav-icon">📊</span>
-          Resumen
+        <button class="icon-btn" onclick="doLogout()" title="Salir">
+          <i class="ti ti-logout" style="color:rgba(255,255,255,0.8);font-size:20px;"></i>
         </button>
-        <button class="nav-item" onclick="showAdminTab('empleados', this)">
-          <span class="nav-icon">👥</span>
-          Empleados
-        </button>
-      </nav>
-      <section id="admin-sec-resumen" class="section active">
-        <div class="sec-title">Resumen del día</div>
-        <div id="admin-resumen"></div>
-      </section>
-      <section id="admin-sec-empleados" class="section">
-        <div class="form-card">
-          <div class="form-title">Agregar empleado</div>
-          <div class="form-group">
-            <label class="form-label">Nombre</label>
-            <input class="form-input" type="text" id="admin-emp-nombre" placeholder="Ej: Juan">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Contraseña</label>
-            <input class="form-input" type="text" id="admin-emp-clave" placeholder="Ej: juan123">
-          </div>
-          <button class="add-btn" onclick="adminAgregarEmpleado()">+ Agregar empleado</button>
+      </div>
+    </div>
+
+    <div style="padding:16px;">
+      <!-- Resumen del día -->
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title" style="margin-bottom:12px;">
+          <i class="ti ti-chart-bar"></i> Resumen de hoy
         </div>
-        <div class="sec-title">Empleados activos</div>
+        <div id="admin-resumen-hoy">
+          <div class="empty">Cargando...</div>
+        </div>
+      </div>
+
+      <!-- Empleados -->
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div class="card-title"><i class="ti ti-users"></i> Empleados</div>
+          <button class="btn btn-sm btn-primary" onclick="showAddEmpleado()">
+            <i class="ti ti-plus"></i> Agregar
+          </button>
+        </div>
         <div id="admin-empleados-list"></div>
-      </section>
+      </div>
+
+      <!-- Historial general -->
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px;">
+          <i class="ti ti-history"></i> Historial general
+        </div>
+        <div id="admin-historial"></div>
+      </div>
     </div>
   </div>
 
-  <div id="loading" class="loading-overlay" style="display:none;">
-    <div class="loading-spinner">💧</div>
+  <!-- ═══ MODALES ═══ -->
+  <div id="modal-overlay" class="modal-overlay" style="display:none;" onclick="closeModal()"></div>
+  <div id="modal" class="modal" style="display:none;">
+    <div id="modal-content"></div>
+  </div>
+
+  <!-- Loading overlay -->
+  <div id="loading-overlay" class="loading-overlay" style="display:none;">
+    <div class="loading-spinner">
+      <i class="ti ti-droplet" style="font-size:32px;color:#0C447C;"></i>
+      <div style="margin-top:8px;font-size:14px;color:#666;">Cargando...</div>
+    </div>
   </div>
 
   <script src="app.js"></script>
