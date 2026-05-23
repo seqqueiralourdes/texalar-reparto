@@ -4,7 +4,7 @@
 
 // ─── Supabase config ────────────────────────────────────────────
 const SUPA_URL = 'https://qrrbspqxcvnbrsnepdgf.supabase.co';
-const SUPA_KEY = 'sb_publishable_OrXy_D4fB0agmE-53Oytnw_3Ff6RSuK';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFycmJzcHF4Y3ZuYnJzbmVwZGdmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1Mjc3NzcsImV4cCI6MjA5NTEwMzc3N30.NmwLFoZfSK2goF7jv7LF6s0Dzg6G6mr9RI7Y0W8TvxU';
 
 function supaHeaders() {
   return {
