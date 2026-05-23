@@ -700,6 +700,10 @@ function showAddCliente() {
       <input id="nc-bid" class="input" type="number" min="0" value="1">
     </div>
     <div class="field-group">
+      <label class="field-label">Bidones 10L habituales</label>
+      <input id="nc-bid10" class="input" type="number" min="0" value="0">
+    </div>
+    <div class="field-group">
       <label class="field-label">Zona</label>
       <select id="nc-zona" class="input">
         <option value="">Sin zona</option>
@@ -728,6 +732,7 @@ async function saveCliente() {
       body: JSON.stringify({
         nombre, direccion: dir, telefono: tel || null,
         bidones_habituales: bid,
+        bidones_habituales_10: parseInt(document.getElementById('nc-bid10').value) || 0,
         orden: state.clientes.length + 1,
         zona_id: zonaId,
         usuario_id: currentUser.id
@@ -766,6 +771,10 @@ function editCliente(id) {
       <input id="ec-bid" class="input" type="number" min="0" value="${c.bidHab}">
     </div>
     <div class="field-group">
+      <label class="field-label">Bidones 10L habituales</label>
+      <input id="ec-bid10" class="input" type="number" min="0" value="${c.bidHab10 || 0}">
+    </div>
+    <div class="field-group">
       <label class="field-label">Zona</label>
       <select id="ec-zona" class="input">
         <option value="">Sin zona</option>
@@ -794,7 +803,7 @@ async function updateCliente(id) {
       body: JSON.stringify({ nombre, direccion: dir, telefono: tel||null, bidones_habituales: bid, zona_id: zonaId })
     });
     const idx = state.clientes.findIndex(c => c.id === id);
-    if (idx >= 0) state.clientes[idx] = { ...state.clientes[idx], nombre, dir, tel, bidHab: bid, zonaId };
+    if (idx >= 0) state.clientes[idx] = { ...state.clientes[idx], nombre, dir, tel, bidHab: bid, bidHab10: parseInt(document.getElementById('ec-bid10').value)||0, zonaId };
     closeModal();
     renderClientes();
     renderRuta();
