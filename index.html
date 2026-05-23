@@ -21,7 +21,7 @@
         </div>
         <span class="header-date" id="fecha-hoy"></span>
       </div>
-     <div class="header-stats">
+      <div class="header-stats">
         <div class="hstat">
           <div class="hstat-label">Clientes visitados</div>
           <div class="hstat-val" id="stat-clientes">0/0</div>
@@ -35,7 +35,6 @@
           <div class="hstat-label">Recolectado hoy</div>
           <div class="hstat-desglose" id="stat-devoluciones"></div>
         </div>
-      </div>
       </div>
     </header>
 
@@ -64,7 +63,7 @@
         <span class="nav-icon">📍</span>
         Zonas
       </button>
-    <button class="nav-item" onclick="showTab('historial', this)">
+      <button class="nav-item" onclick="showTab('historial', this)">
         <span class="nav-icon">📋</span>
         Historial
       </button>
@@ -76,16 +75,12 @@
 
     <!-- Sección: Ruta -->
     <section id="sec-ruta" class="section active">
-
-      <!-- Selector de zona (se muestra si no hay zona elegida hoy) -->
       <div id="zona-selector">
         <div class="zona-selector-header">
           <div class="sec-title">¿Qué zona hacés hoy?</div>
         </div>
         <div id="zonas-opciones"></div>
       </div>
-
-      <!-- Zona activa (se muestra si ya eligió zona) -->
       <div id="zona-activa" style="display:none;">
         <div class="zona-activa-bar">
           <div class="zona-activa-info">
@@ -95,12 +90,11 @@
           <button class="zona-cambiar-btn" onclick="cambiarZona()">Cambiar</button>
         </div>
       </div>
-
       <div class="sec-title" id="ruta-subtitle" style="margin-top:12px;">Ruta de hoy</div>
       <div id="ruta-list"></div>
     </section>
 
-   <!-- Botón exportar resumen -->
+    <!-- Botón exportar resumen -->
     <div class="cerrar-wrap" id="exportar-wrap" style="display:none;">
       <button class="cerrar-btn" onclick="exportarResumen()">📋 Exportar resumen del día</button>
     </div>
@@ -163,14 +157,14 @@
       <div id="hist-list"></div>
     </section>
 
-  </div>
-
-<!-- Sección: Cobros pendientes -->
+    <!-- Sección: Cobros pendientes -->
     <section id="sec-pendientes" class="section">
       <div class="sec-title">Cobros pendientes</div>
       <div id="pendientes-list"></div>
     </section>
-  
+
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>
