@@ -264,9 +264,11 @@ function renderRuta() {
     const total = calcularTotal(r.bid5, r.bid10);
     const pagoLabel = r.pago === 'transferencia'
       ? '<span class="pago-badge pago-transf">🔵 Transferencia</span>'
-      : r.pago === 'efectivo'
+     : r.pago === 'efectivo'
         ? '<span class="pago-badge pago-efec">💵 Efectivo</span>'
-        : '';
+        : r.pago === 'pendiente'
+          ? '<span class="pago-badge pago-pend">⏳ Pendiente</span>'
+          : '';
 
     return `
       <div class="card ${done?'done':''}">
@@ -301,6 +303,7 @@ function renderRuta() {
           <div class="pago-btns">
             <button class="pago-btn ${r.pago==='efectivo'?'pago-btn-active':''}" onclick="setPago(${c.id},'efectivo')">💵 Efectivo</button>
             <button class="pago-btn ${r.pago==='transferencia'?'pago-btn-active':''}" onclick="setPago(${c.id},'transferencia')">🔵 Transferencia</button>
+            <button class="pago-btn ${r.pago==='pendiente'?'pago-btn-pendiente':''}" onclick="setPago(${c.id},'pendiente')">⏳ Pendiente</button>
           </div>
         </div>` : `<div style="margin-bottom:10px;">${pagoLabel}</div>`}
         <div class="card-bottom">
@@ -498,12 +501,13 @@ function renderHistorial() {
                 <div id="hist-body-${uid}" class="hist-body" style="display:none;">
                   ${entregados.map(e => {
                     const subtotal = calcularTotal(e.bid5||0,e.bid10||0);
-                    const pagoIcon = e.pago==='transferencia' ? '🔵' : '💵';
+                    const pagoIcon = e.pago==='transferencia' ? '🔵' : e.pago==='pendiente' ? '⏳' : '💵';
+                    const pagoTexto = e.pago==='transferencia' ? 'Transferencia' : e.pago==='pendiente' ? 'Pendiente' : 'Efectivo';
                     return `
                       <div class="hist-row">
                         <div>
                           <div>${e.nombre}</div>
-                          <div style="font-size:11px;color:#888;margin-top:2px;">${pagoIcon} ${e.pago==='transferencia'?'Transferencia':'Efectivo'}</div>
+                          <div style="font-size:11px;color:#888;margin-top:2px;">${pagoIcon} ${pagoTexto}</div>
                         </div>
                         <div class="hist-row-right">
                           <span class="hist-bid-detail">${e.bid5>0?e.bid5+'×5lts ':''} ${e.bid10>0?e.bid10+'×10lts':''}</span>
