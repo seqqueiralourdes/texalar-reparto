@@ -1,3 +1,4 @@
+/* ── Reset ── */
 * {
   box-sizing: border-box;
   margin: 0;
@@ -82,7 +83,65 @@ body {
   color: white;
   font-size: 22px;
   font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
+
+.hstat-desglose {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.hstat-full {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.hstat-full .hstat-label { margin-bottom: 0; }
+
+.hstat-full .hstat-desglose {
+  flex-direction: row;
+  gap: 12px;
+}
+
+.desglose-item {
+  font-size: 11px;
+  color: rgba(255,255,255,0.7);
+}
+
+/* ── Total ocultable ── */
+.total-prefix {
+  color: white;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.total-amount {
+  color: white;
+  font-size: 20px;
+  font-weight: 500;
+  transition: filter 0.2s;
+  margin-right: 4px;
+}
+
+.total-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: rgba(255,255,255,0.6);
+  font-size: 16px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+}
+
+.total-toggle:hover { color: white; }
 
 /* ── Barra de progreso ── */
 .progress-wrap {
@@ -152,9 +211,7 @@ body {
   padding: 14px 12px;
 }
 
-.section.active {
-  display: block;
-}
+.section.active { display: block; }
 
 .sec-title {
   font-size: 12px;
@@ -167,10 +224,6 @@ body {
 }
 
 /* ── Selector de zona ── */
-.zona-selector-header {
-  margin-bottom: 4px;
-}
-
 .zona-opcion {
   width: 100%;
   display: flex;
@@ -186,13 +239,8 @@ body {
   transition: background 0.15s;
 }
 
-.zona-opcion:active {
-  background: #E6F1FB;
-}
-
-.zona-opcion-icon {
-  font-size: 22px;
-}
+.zona-opcion:active { background: #E6F1FB; }
+.zona-opcion-icon { font-size: 22px; }
 
 .zona-opcion-nombre {
   flex: 1;
@@ -245,9 +293,7 @@ body {
   cursor: pointer;
 }
 
-.zona-cambiar-btn:active {
-  background: #B5D4F4;
-}
+.zona-cambiar-btn:active { background: #B5D4F4; }
 
 /* ── Cards de ruta ── */
 .card {
@@ -259,9 +305,7 @@ body {
   transition: opacity 0.2s;
 }
 
-.card.done {
-  opacity: 0.5;
-}
+.card.done { opacity: 0.55; }
 
 .card-top {
   display: flex;
@@ -313,16 +357,36 @@ body {
   margin-top: 2px;
 }
 
-.card-bottom {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.card-total {
+  font-size: 14px;
+  font-weight: 700;
+  color: #27500A;
+  background: #EAF3DE;
+  padding: 4px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
 }
 
-.bid-ctrl {
+/* ── Grilla de bidones ── */
+.bid-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.bid-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+}
+
+.bid-tipo {
+  font-size: 12px;
+  font-weight: 600;
+  color: #0C447C;
+  width: 36px;
+  flex-shrink: 0;
 }
 
 .bid-btn {
@@ -350,9 +414,110 @@ body {
   text-align: center;
 }
 
-.bid-lbl {
-  font-size: 12px;
+.bid-precio {
+  font-size: 11px;
   color: #aaa;
+  margin-left: 4px;
+}
+
+/* ── Selector de pago ── */
+.pago-selector { margin-bottom: 12px; }
+
+.pago-label {
+  font-size: 12px;
+  color: #888;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.pago-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.pago-btn {
+  flex: 1;
+  padding: 9px 8px;
+  border-radius: 10px;
+  border: 1.5px solid #e4e8ed;
+  background: #fafafa;
+  font-size: 13px;
+  font-weight: 500;
+  color: #555;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.pago-btn:active { background: #E6F1FB; }
+
+.pago-btn-active {
+  border-color: #0C447C;
+  background: #E6F1FB;
+  color: #0C447C;
+  font-weight: 600;
+}
+
+.pago-btn-pendiente {
+  border-color: #F0D080;
+  background: #FFF8E6;
+  color: #7A5C00;
+  font-weight: 600;
+}
+
+.pago-badge {
+  display: inline-block;
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+
+.pago-efec { background: #F0F7E6; color: #27500A; }
+.pago-transf { background: #E6F1FB; color: #0C447C; }
+.pago-pend { background: #FFF8E6; color: #7A5C00; }
+
+/* ── Devoluciones ── */
+.dev-section {
+  background: #f8fafc;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border: 0.5px solid #e4e8ed;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dev-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.dev-label {
+  font-size: 13px;
+  color: #555;
+  flex: 1;
+}
+
+.dev-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Card bottom ── */
+.card-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.subtotal {
+  font-size: 13px;
+  color: #555;
 }
 
 .mark-btn {
@@ -369,13 +534,31 @@ body {
 
 .mark-btn:active { background: #B5D4F4; }
 .mark-btn.done { background: #EAF3DE; color: #27500A; }
+.mark-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* ── Botón cerrar reparto ── */
-.cerrar-wrap {
+/* ── Pendientes bar ── */
+.pendientes-bar {
+  background: #FFF8E6;
+  border: 0.5px solid #F0D080;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: #7A5C00;
+  margin-bottom: 12px;
+}
+
+.pendientes-ok {
+  background: #EAF3DE;
+  border-color: #B5D98A;
+  color: #27500A;
+}
+
+/* ── Botón exportar ── */
+.exportar-wrap {
   padding: 4px 12px 12px;
 }
 
-.cerrar-btn {
+.exportar-btn {
   width: 100%;
   padding: 14px;
   background: white;
@@ -387,7 +570,7 @@ body {
   cursor: pointer;
 }
 
-.cerrar-btn:active { background: #E6F1FB; }
+.exportar-btn:active { background: #E6F1FB; }
 
 /* ── Formulario ── */
 .form-card {
@@ -405,9 +588,7 @@ body {
   color: #1a1a1a;
 }
 
-.form-group {
-  margin-bottom: 10px;
-}
+.form-group { margin-bottom: 10px; }
 
 .form-label {
   font-size: 12px;
@@ -499,10 +680,19 @@ body {
   font-size: 12px;
   color: #888;
   margin-top: 2px;
+  display: block;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.client-tel-link {
+  color: #0C447C;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.client-tel-link:active { text-decoration: underline; }
 
 .client-tags {
   display: flex;
@@ -539,15 +729,58 @@ body {
 }
 
 /* ── Historial ── */
-.hist-card {
+.hist-fecha-grupo { margin-bottom: 16px; }
+
+.hist-fecha-header {
+  padding: 8px 2px 6px;
+}
+
+.hist-fecha-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.hist-fecha-sub {
+  font-size: 12px;
+  color: #888;
+  margin-top: 2px;
+}
+
+.hist-fecha-desglose {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.desglose-ef {
+  font-size: 12px;
+  color: #27500A;
+  background: #F0F7E6;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+.desglose-tr {
+  font-size: 12px;
+  color: #0C447C;
+  background: #E6F1FB;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+.hist-zona-card {
   background: white;
   border-radius: 14px;
-  margin-bottom: 10px;
-  border: 0.5px solid #e4e8ed;
+  margin-bottom: 8px;
+  border: 1.5px solid #B5D4F4;
   overflow: hidden;
+  box-shadow: 0 2px 6px rgba(12,68,124,0.07);
 }
 
 .hist-head {
+  background: #E6F1FB;
   padding: 14px;
   display: flex;
   align-items: center;
@@ -555,32 +788,23 @@ body {
   cursor: pointer;
 }
 
-.hist-head:active { background: #fafafa; }
+.hist-head:active { background: #B5D4F4; }
 
-.hist-title {
-  font-size: 14px;
+.hist-zona-total {
+  font-size: 13px;
   font-weight: 600;
-  color: #1a1a1a;
-}
-
-.hist-sub {
-  font-size: 12px;
-  color: #888;
-  margin-top: 4px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: wrap;
+  color: #0C447C;
 }
 
 .hist-arrow {
-  font-size: 16px;
-  color: #ccc;
+  font-size: 22px;
+  color: #0C447C;
+  font-weight: 700;
   transition: transform 0.2s;
 }
 
 .hist-body {
-  border-top: 0.5px solid #f0f4f8;
+  border-top: 0.5px solid #e4e8ed;
   padding: 0 14px;
 }
 
@@ -594,97 +818,6 @@ body {
 }
 
 .hist-row:last-child { border-bottom: none; }
-
-.badge-ok {
-  background: #EAF3DE;
-  color: #27500A;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 3px 9px;
-  border-radius: 20px;
-}
-
-.badge-no {
-  background: #f5f5f5;
-  color: #aaa;
-  font-size: 11px;
-  padding: 3px 9px;
-  border-radius: 20px;
-}
-
-/* ── Vacío ── */
-.empty {
-  text-align: center;
-  color: #bbb;
-  padding: 3rem 1rem;
-  font-size: 14px;
-}
-
-/* ── Grilla de bidones por tipo ── */
-.bid-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.bid-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.bid-tipo {
-  font-size: 12px;
-  font-weight: 600;
-  color: #0C447C;
-  width: 36px;
-  flex-shrink: 0;
-}
-
-.bid-precio {
-  font-size: 11px;
-  color: #aaa;
-  margin-left: 4px;
-}
-
-.subtotal {
-  font-size: 13px;
-  color: #555;
-}
-
-.card-total {
-  font-size: 15px;
-  font-weight: 700;
-  color: #27500A;
-  background: #EAF3DE;
-  padding: 4px 10px;
-  border-radius: 20px;
-  white-space: nowrap;
-}
-
-/* ── Pendientes bar ── */
-.pendientes-bar {
-  background: #FFF8E6;
-  border: 0.5px solid #F0D080;
-  border-radius: 10px;
-  padding: 10px 14px;
-  font-size: 12px;
-  color: #7A5C00;
-  margin-bottom: 12px;
-}
-
-.pendientes-ok {
-  background: #EAF3DE;
-  border-color: #B5D98A;
-  color: #27500A;
-}
-
-/* ── Historial con totales ── */
-.hist-total {
-  font-weight: 700;
-  color: #0C447C;
-}
 
 .hist-row-right {
   display: flex;
@@ -704,53 +837,6 @@ body {
   font-size: 13px;
 }
 
-/* ── Historial agrupado por fecha ── */
-.hist-fecha-grupo {
-  margin-bottom: 16px;
-}
-
-.hist-fecha-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 2px 6px;
-}
-
-.hist-fecha-title {
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--color-text-primary, #1a1a1a);
-}
-
-.hist-fecha-sub {
-  font-size: 12px;
-  color: #888;
-  margin-top: 2px;
-}
-
-.hist-zona-card {
-  background: white;
-  border-radius: 14px;
-  margin-bottom: 8px;
-  border: 1.5px solid #B5D4F4;
-  overflow: hidden;
-  box-shadow: 0 2px 6px rgba(12,68,124,0.07);
-}
-
-.hist-head {
-  background: #E6F1FB;
-}
-
-.hist-head:active {
-  background: #B5D4F4;
-}
-
-.hist-zona-total {
-  font-size: 13px;
-  font-weight: 500;
-  color: #0C447C;
-}
-
 .tag-en-curso {
   font-size: 11px;
   padding: 2px 8px;
@@ -761,157 +847,13 @@ body {
   border: 0.5px solid #F0D080;
 }
 
-/* ── Total ocultable ── */
-.total-prefix {
-  color: white;
-  font-size: 20px;
-  font-weight: 500;
-}
-
-.total-amount {
-  color: white;
-  font-size: 20px;
-  font-weight: 500;
-  transition: filter 0.2s;
-  margin-right: 6px;
-}
-
-.total-toggle {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: rgba(255,255,255,0.6);
-  font-size: 16px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  vertical-align: middle;
-}
-
-.total-toggle:hover {
-  color: white;
-}
-
-/* ── Selector de pago ── */
-.pago-selector {
-  margin-bottom: 12px;
-}
-
-.pago-label {
-  font-size: 12px;
-  color: #888;
-  display: block;
-  margin-bottom: 6px;
-}
-
-.pago-btns {
-  display: flex;
-  gap: 8px;
-}
-
-.pago-btn {
-  flex: 1;
-  padding: 9px 8px;
-  border-radius: 10px;
-  border: 1.5px solid #e4e8ed;
-  background: #fafafa;
-  font-size: 13px;
-  font-weight: 500;
-  color: #555;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.pago-btn:active {
-  background: #E6F1FB;
-}
-
-.pago-btn-active {
-  border-color: #0C447C;
-  background: #E6F1FB;
-  color: #0C447C;
-  font-weight: 600;
-}
-
-.pago-badge {
-  display: inline-block;
-  font-size: 12px;
-  padding: 3px 10px;
-  border-radius: 20px;
-  font-weight: 500;
-  margin-bottom: 10px;
-}
-
-.pago-efec {
-  background: #F0F7E6;
+.badge-ok {
+  background: #EAF3DE;
   color: #27500A;
-}
-
-.pago-transf {
-  background: #E6F1FB;
-  color: #0C447C;
-}
-
-.pago-pend {
-  background: #FFF8E6;
-  color: #7A5C00;
-}
-
-.pago-btn-pendiente {
-  border-color: #F0D080;
-  background: #FFF8E6;
-  color: #7A5C00;
-  font-weight: 600;
-}
-
-/* ── Desglose en header ── */
-.hstat-desglose {
-  margin-top: 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.desglose-item {
   font-size: 11px;
-  color: rgba(255,255,255,0.7);
-}
-
-/* ── Desglose en historial ── */
-.hist-fecha-desglose {
-  display: flex;
-  gap: 10px;
-  margin-top: 4px;
-}
-
-.desglose-ef {
-  font-size: 12px;
-  color: #555;
-  background: #F0F7E6;
-  padding: 2px 8px;
+  font-weight: 600;
+  padding: 3px 9px;
   border-radius: 20px;
-}
-
-.desglose-tr {
-  font-size: 12px;
-  color: #0C447C;
-  background: #E6F1FB;
-  padding: 2px 8px;
-  border-radius: 20px;
-}
-
-/* ── Teléfono clickeable ── */
-.client-tel-link {
-  display: inline-block;
-  color: #0C447C;
-  text-decoration: none;
-  font-size: 12px;
-  margin-top: 2px;
-  font-weight: 500;
-}
-
-.client-tel-link:active {
-  text-decoration: underline;
 }
 
 /* ── Cobros pendientes ── */
@@ -927,13 +869,9 @@ body {
   font-size: 14px;
 }
 
-.pend-total-banner strong {
-  font-size: 20px;
-}
+.pend-total-banner strong { font-size: 20px; }
 
-.pend-zona-grupo {
-  margin-bottom: 16px;
-}
+.pend-zona-grupo { margin-bottom: 16px; }
 
 .pend-zona-header {
   display: flex;
@@ -955,16 +893,17 @@ body {
   padding: 12px 14px;
   margin-bottom: 8px;
   border: 1.5px solid #F0D080;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
 }
 
-.pend-card-info {
-  flex: 1;
-  min-width: 0;
+.pend-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 10px;
 }
+
+.pend-card-info { flex: 1; min-width: 0; }
 
 .pend-card-nombre {
   font-size: 14px;
@@ -978,28 +917,19 @@ body {
   margin-top: 3px;
 }
 
-
-.pend-monto {
-  font-size: 15px;
-  font-weight: 700;
-  color: #7A5C00;
-  white-space: nowrap;
-}
-
-.pend-card-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
 .pend-card-right {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 4px;
   flex-shrink: 0;
+}
+
+.pend-monto {
+  font-size: 15px;
+  font-weight: 700;
+  color: #7A5C00;
+  white-space: nowrap;
 }
 
 .pend-card-actions {
@@ -1020,71 +950,16 @@ body {
   display: inline-block;
 }
 
-.pend-tel-btn {
-  background: #E6F1FB;
-  color: #0C447C;
-}
+.pend-tel-btn { background: #E6F1FB; color: #0C447C; }
+.pend-tel-btn:active { background: #B5D4F4; }
 
-.pend-tel-btn:active {
-  background: #B5D4F4;
-}
+.pend-cobrado-btn { background: #EAF3DE; color: #27500A; }
+.pend-cobrado-btn:active { background: #C5E09A; }
 
-.pend-cobrado-btn {
-  background: #EAF3DE;
-  color: #27500A;
-}
-
-.pend-cobrado-btn:active {
-  background: #C5E09A;
-}
-
-
-/* ── Devoluciones ── */
-.dev-section {
-  background: #f8fafc;
-  border-radius: 10px;
-  padding: 10px 12px;
-  margin-bottom: 12px;
-  border: 0.5px solid #e4e8ed;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.dev-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.dev-label {
-  font-size: 13px;
-  color: #555;
-  flex: 1;
-}
-
-.dev-ctrl {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* ── Header stat full width ── */
-.hstat-full {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.hstat-full .hstat-label {
-  margin-bottom: 0;
-}
-
-.hstat-full .hstat-desglose {
-  display: flex;
-  gap: 12px;
-  flex-direction: row;
+/* ── Vacío ── */
+.empty {
+  text-align: center;
+  color: #bbb;
+  padding: 3rem 1rem;
+  font-size: 14px;
 }
