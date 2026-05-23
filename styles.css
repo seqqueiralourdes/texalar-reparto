@@ -978,6 +978,7 @@ body {
   margin-top: 3px;
 }
 
+
 .pend-monto {
   font-size: 15px;
   font-weight: 700;
@@ -985,3 +986,54 @@ body {
   white-space: nowrap;
 }
 
+.pend-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.pend-card-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.pend-card-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.pend-action-btn {
+  flex: 1;
+  padding: 9px 8px;
+  border-radius: 10px;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.pend-tel-btn {
+  background: #E6F1FB;
+  color: #0C447C;
+}
+
+.pend-tel-btn:active {
+  background: #B5D4F4;
+}
+
+.pend-cobrado-btn {
+  background: #EAF3DE;
+  color: #27500A;
+}
+
+.pend-cobrado-btn:active {
+  background: #C5E09A;
+}
