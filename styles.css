@@ -1037,3 +1037,54 @@ body {
 .pend-cobrado-btn:active {
   background: #C5E09A;
 }
+
+
+/* ── Devoluciones ── */
+.dev-section {
+  background: #f8fafc;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border: 0.5px solid #e4e8ed;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dev-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.dev-label {
+  font-size: 13px;
+  color: #555;
+  flex: 1;
+}
+
+.dev-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Header stat full width ── */
+.hstat-full {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.hstat-full .hstat-label {
+  margin-bottom: 0;
+}
+
+.hstat-full .hstat-desglose {
+  display: flex;
+  gap: 12px;
+  flex-direction: row;
+}
