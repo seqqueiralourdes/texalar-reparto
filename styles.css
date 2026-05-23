@@ -913,3 +913,75 @@ body {
 .client-tel-link:active {
   text-decoration: underline;
 }
+
+/* ── Cobros pendientes ── */
+.pend-total-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #0C447C;
+  color: white;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.pend-total-banner strong {
+  font-size: 20px;
+}
+
+.pend-zona-grupo {
+  margin-bottom: 16px;
+}
+
+.pend-zona-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  padding: 0 2px;
+}
+
+.pend-zona-total {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0C447C;
+}
+
+.pend-card {
+  background: white;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  border: 1.5px solid #F0D080;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pend-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.pend-card-nombre {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.pend-card-detalle {
+  font-size: 12px;
+  color: #888;
+  margin-top: 3px;
+}
+
+.pend-monto {
+  font-size: 15px;
+  font-weight: 700;
+  color: #7A5C00;
+  white-space: nowrap;
+}
+
