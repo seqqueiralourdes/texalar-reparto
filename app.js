@@ -519,8 +519,9 @@ function eliminarCliente(id) {
 }
 
 // ─── Historial ────────────────────────────────────────────────
-const botonLunes = esLunes()
-    ? `<button class="limpiar-btn" onclick="limpiarHistorial()">🗑 Limpiar historial de la semana</button>`
+function renderHistorial() {
+  const botonLunes = esLunes()
+? `<button class="limpiar-btn" onclick="limpiarHistorial()">🗑 Limpiar historial de la semana</button>`
     : '';
 
   if (!state.historial.length) {
