@@ -9,17 +9,6 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
   <link rel="stylesheet" href="styles.css">
 </head>
-
-  <div id="install-banner" style="display:none;position:fixed;bottom:90px;left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:448px;background:#0C447C;color:white;border-radius:14px;padding:14px 16px;align-items:center;gap:12px;z-index:300;box-shadow:0 4px 20px rgba(0,0,0,0.3);">
-  <img src="/icon3-192.png" style="width:40px;height:40px;border-radius:8px;flex-shrink:0;">
-  <div style="flex:1;">
-    <div style="font-weight:700;font-size:14px;">Instalá la app</div>
-    <div style="font-size:12px;opacity:0.8;">Accedé rápido desde tu pantalla de inicio</div>
-  </div>
-  <button onclick="instalarApp()" style="background:white;color:#0C447C;border:none;border-radius:8px;padding:8px 14px;font-weight:700;font-size:13px;cursor:pointer;flex-shrink:0;">Instalar</button>
-  <button onclick="cerrarBanner()" style="background:none;border:none;color:white;font-size:20px;cursor:pointer;padding:0;flex-shrink:0;">✕</button>
-</div>
-  
 <body>
 
   <!-- ═══ PANTALLA DE LOGIN ═══ -->
@@ -54,7 +43,7 @@
     <div class="header">
       <div class="header-top">
         <div>
-<div class="header-title"><img src="/icon3-192.png" style="width:28px;height:28px;vertical-align:middle;margin-right:8px;border-radius:6px;">Texalar Reparto</div>
+          <div class="header-title"><img src="/icon3-192.png" style="width:28px;height:28px;vertical-align:middle;margin-right:8px;border-radius:6px;">Texalar Reparto</div>
           <div id="fecha-hoy" class="header-date"></div>
         </div>
         <div style="display:flex;align-items:center;gap:10px;">
@@ -170,7 +159,6 @@
     </div>
 
     <div style="padding:16px;">
-      <!-- Resumen del día -->
       <div class="card" style="margin-bottom:16px;">
         <div class="card-title" style="margin-bottom:12px;">
           <i class="ti ti-chart-bar"></i> Resumen de hoy
@@ -180,7 +168,6 @@
         </div>
       </div>
 
-      <!-- Empleados -->
       <div class="card" style="margin-bottom:16px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
           <div class="card-title"><i class="ti ti-users"></i> Empleados</div>
@@ -191,7 +178,6 @@
         <div id="admin-empleados-list"></div>
       </div>
 
-      <!-- Historial general -->
       <div class="card">
         <div class="card-title" style="margin-bottom:12px;">
           <i class="ti ti-history"></i> Historial general
@@ -215,6 +201,22 @@
     </div>
   </div>
 
+  <!-- Banner instalación -->
+  <div id="install-banner" style="display:none;position:fixed;bottom:90px;left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:448px;background:#0C447C;color:white;border-radius:14px;padding:14px 16px;align-items:center;gap:12px;z-index:300;box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+    <img src="/icon3-192.png" style="width:40px;height:40px;border-radius:8px;flex-shrink:0;">
+    <div style="flex:1;">
+      <div style="font-weight:700;font-size:14px;">Instalá la app</div>
+      <div style="font-size:12px;opacity:0.8;">Accedé rápido desde tu pantalla de inicio</div>
+    </div>
+    <button onclick="instalarApp()" style="background:white;color:#0C447C;border:none;border-radius:8px;padding:8px 14px;font-weight:700;font-size:13px;cursor:pointer;flex-shrink:0;">Instalar</button>
+    <button onclick="cerrarBanner()" style="background:none;border:none;color:white;font-size:20px;cursor:pointer;padding:0;flex-shrink:0;">✕</button>
+  </div>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(console.error);
+    }
+  </script>
   <script src="app.js"></script>
 </body>
 </html>
