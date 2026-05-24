@@ -1351,6 +1351,31 @@ function toggleTotal() {
   if (icon)   icon.className = totalVisible ? 'ti ti-eye' : 'ti ti-eye-off';
 }
 
+
+// ─── Banner de instalación ───────────────────────────────────
+let deferredPrompt = null;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('install-banner').style.display = 'flex';
+});
+
+function instalarApp() {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.then(() => {
+    deferredPrompt = null;
+    document.getElementById('install-banner').style.display = 'none';
+  });
+}
+
+function cerrarBanner() {
+  document.getElementById('install-banner').style.display = 'none';
+}
+
+
+
 // ═══════════════════════════════════════════════════════════════
 //  ARRANQUE
 // ═══════════════════════════════════════════════════════════════
