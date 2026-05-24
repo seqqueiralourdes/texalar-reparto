@@ -1362,16 +1362,35 @@ window.addEventListener('beforeinstallprompt', (e) => {
 });
 
 function instalarApp() {
-  if (!deferredPrompt) return;
-  deferredPrompt.prompt();
-  deferredPrompt.userChoice.then(() => {
-    deferredPrompt = null;
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(() => {
+      deferredPrompt = null;
+      document.getElementById('install-banner').style.display = 'none';
+    });
+  } else {
     document.getElementById('install-banner').style.display = 'none';
-  });
+    openModal(`
+      <div class="modal-title">📲 Instalá la app</div>
+      <p style="font-size:14px;color:#475569;margin-bottom:16px;">Para guardar la app en tu pantalla de inicio:</p>
+      <div style="background:#f8fafc;border-radius:10px;padding:14px;margin-bottom:10px;">
+        <div style="font-weight:600;margin-bottom:6px;">Android (Chrome)</div>
+        <div style="font-size:13px;color:#475569;">1. Tocá los tres puntitos ⋮ arriba a la derecha<br>2. Tocá <strong>"Agregar a pantalla de inicio"</strong><br>3. Confirmá</div>
+      </div>
+      <div style="background:#f8fafc;border-radius:10px;padding:14px;">
+        <div style="font-weight:600;margin-bottom:6px;">iPhone (Safari)</div>
+        <div style="font-size:13px;color:#475569;">1. Tocá el ícono de compartir 📤 abajo<br>2. Tocá <strong>"Agregar a pantalla de inicio"</strong><br>3. Confirmá</div>
+      </div>
+      <div class="modal-footer" style="margin-top:16px;">
+        <button class="btn btn-primary" onclick="closeModal()">Entendido</button>
+      </div>
+    `);
+  }
 }
 
 function cerrarBanner() {
   document.getElementById('install-banner').style.display = 'none';
+  localStorage.setItem('banner_cerrado', '1');
 }
 
 
@@ -1384,6 +1403,11 @@ function cerrarBanner() {
 
 
 (async () => {
+  if (!localStorage.getItem('banner_cerrado')) {
+    setTimeout(() => {
+      document.getElementById('install-banner').style.display = 'flex';
+    }, 3000);
+  }
   const saved = localStorage.getItem('texalar_user');
   if (saved) {
     try {
