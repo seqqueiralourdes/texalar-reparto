@@ -164,8 +164,8 @@ async function cargarDatosEmpleado() {
           bid5: e.bid5,
           bid10: e.bid10,
           pago: e.pago,
-          devBidones: e.dev_bidones,
-          devCanillas: e.dev_canillas,
+          devBidones: e.dev_bidones || 0,
+          devCanillas: e.dev_canillas || 0,
           entregado: e.entregado
         };
         // Inferir zona del primer cliente entregado
@@ -381,7 +381,7 @@ function renderRuta() {
       </div>
 
       <!-- Pago -->
-      ${r.entregado ? `
+     <!-- Pago -->
       <div class="pago-selector">
         <div class="pago-label">Pago</div>
         <div class="pago-btns">
@@ -389,7 +389,7 @@ function renderRuta() {
           <button class="pago-btn ${r.pago==='transferencia'?'pago-btn-active':''}" onclick="setPago('${c.id}','transferencia')">🔵 Transferencia</button>
           <button class="pago-btn ${r.pago==='pendiente'?'pago-btn-pendiente':''}" onclick="setPago('${c.id}','pendiente')">⏳ Pendiente</button>
         </div>
-      </div>` : ''}
+      </div>
 
     <!-- Devoluciones -->
       <div class="dev-section">
