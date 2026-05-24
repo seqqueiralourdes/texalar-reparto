@@ -391,8 +391,7 @@ function renderRuta() {
         </div>
       </div>` : ''}
 
-      <!-- Devoluciones -->
-      ${r.entregado ? `
+    <!-- Devoluciones -->
       <div class="dev-section">
         <div class="dev-label">Devoluciones</div>
         <div class="dev-row">
@@ -411,7 +410,7 @@ function renderRuta() {
             <button class="bid-btn bid-btn-sm" onclick="setDev('${c.id}','canillas',1)">+</button>
           </div>
         </div>
-      </div>` : ''}
+      </div>
 
       <!-- Botón entregar -->
       <button class="btn ${r.entregado ? 'btn-success' : 'btn-primary'} btn-block" onclick="toggleEntrega('${c.id}')">
