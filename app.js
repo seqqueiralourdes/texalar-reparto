@@ -746,7 +746,7 @@ function showAddCliente() {
     </div>
     <div class="field-group">
       <label class="field-label">Bidones 5L habituales</label>
-      <input id="nc-bid" class="input" type="number" min="0" value="1">
+      <input id="nc-bid" class="input" type="number" min="0" value="0">
     </div>
     <div class="field-group">
       <label class="field-label">Bidones 10L habituales</label>
