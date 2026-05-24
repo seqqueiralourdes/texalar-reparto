@@ -359,7 +359,7 @@ function renderRuta() {
         <div class="cliente-info">
           <div class="cliente-nombre">${c.nombre}</div>
           <div class="cliente-dir"><i class="ti ti-map-pin"></i> ${c.dir}</div>
-          ${c.tel ? `<div class="cliente-dir"><i class="ti ti-phone"></i> ${c.tel}</div>` : ''}
+          ${c.tel ? `<div class="cliente-dir"><i class="ti ti-phone"></i> <a href="tel:${c.tel}" style="color:#64748b;text-decoration:none;">${c.tel}</a></div>` : ''}
         </div>
         <div class="cliente-total">${formatPeso(total)}</div>
       </div>
