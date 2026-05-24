@@ -667,7 +667,10 @@ function renderCobrosPendientes() {
         fecha: today,
         zona: zonaNombreHoy,
         total: calcularTotal(r.bid5||0, r.bid10||0),
-        tel: c.tel || null
+        tel: c.tel || null,
+        clienteId: c.id,
+        esHoy: true,
+        cobrado: false
       });
     }
   });
@@ -676,6 +679,7 @@ function renderCobrosPendientes() {
   state.historial.forEach(h => {
     h.entregas.forEach(e => {
       if (e.entregado && e.pago === 'pendiente') {
+        const cli = state.clientes.find(c => c.nombre === e.nombre);
         pendientes.push({
           nombre: e.nombre,
           bid5: e.bid5 || 0,
@@ -683,7 +687,11 @@ function renderCobrosPendientes() {
           fecha: h.fecha,
           zona: h.zona,
           total: calcularTotal(e.bid5||0, e.bid10||0),
-          tel: state.clientes.find(c => c.nombre === e.nombre)?.tel || null
+          tel: cli?.tel || null,
+          clienteId: cli?.id || null,
+          entregaId: e.entregaId,
+          esHoy: false,
+          cobrado: false
         });
       }
     });
@@ -701,23 +709,92 @@ function renderCobrosPendientes() {
       <span>Total pendiente</span>
       <strong>${formatPeso(totalGeneral)}</strong>
     </div>
-    ${pendientes.map(p => {
+    ${pendientes.map((p, idx) => {
       const [anio, mes, dia] = p.fecha.split('-');
       const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
       const fechaStr = `${dia} ${meses[parseInt(mes)-1]}`;
       return `
-      <div class="pend-card">
-        <div class="pend-row">
+      <div class="pend-card" id="pend-card-${idx}">
+        <div class="pend-header" onclick="togglePend(${idx})">
           <div>
-            <div style="font-weight:600;">${p.nombre}</div>
+            <div class="pend-nombre" id="pend-nombre-${idx}">${p.nombre}</div>
             <div style="font-size:12px;color:#888;">${fechaStr} · ${p.zona}</div>
-            <div style="font-size:12px;color:#888;">${p.bid5}×5L + ${p.bid10}×10L</div>
-            ${p.tel ? `<div style="font-size:12px;margin-top:4px;"><a href="tel:${p.tel}" style="color:#0C447C;">${p.tel}</a></div>` : ''}
           </div>
-          <div class="pend-monto">${formatPeso(p.total)}</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="pend-monto">${formatPeso(p.total)}</span>
+            <i class="ti ti-chevron-right hist-arrow" id="pend-arrow-${idx}"></i>
+          </div>
+        </div>
+        <div class="pend-body" id="pend-body-${idx}" style="display:none;">
+          <div class="pend-detalle">
+            <div class="hist-row">
+              <span>Bidones 5L</span><span>${p.bid5} × ${formatPeso(PRECIO_5)} = ${formatPeso(p.bid5 * PRECIO_5)}</span>
+            </div>
+            <div class="hist-row">
+              <span>Bidones 10L</span><span>${p.bid10} × ${formatPeso(PRECIO_10)} = ${formatPeso(p.bid10 * PRECIO_10)}</span>
+            </div>
+            <div class="hist-row hist-row-total">
+              <strong>Total</strong><strong>${formatPeso(p.total)}</strong>
+            </div>
+          </div>
+          <div class="pend-acciones">
+            ${p.tel ? `
+            <a href="tel:${p.tel}" class="btn btn-outline btn-sm" style="flex:1;">
+              <i class="ti ti-phone"></i> ${p.tel}
+            </a>` : ''}
+            <button class="btn btn-sm" style="flex:1;background:#dcfce7;color:#166534;border:none;" onclick="cobrarEfectivo(${idx}, '${p.clienteId}', '${p.entregaId||''}', ${p.esHoy})">
+              💵 Cobrar efectivo
+            </button>
+            <button class="btn btn-sm" style="flex:1;background:#dbeafe;color:#1e40af;border:none;" onclick="cobrarTransferencia(${idx}, '${p.clienteId}', '${p.entregaId||''}', ${p.esHoy})">
+              🔵 Transferencia
+            </button>
+          </div>
         </div>
       </div>`;
     }).join('')}`;
+}
+
+function togglePend(idx) {
+  const body  = document.getElementById('pend-body-' + idx);
+  const arrow = document.getElementById('pend-arrow-' + idx);
+  const open  = body.style.display !== 'none';
+  body.style.display    = open ? 'none' : 'block';
+  arrow.style.transform = open ? '' : 'rotate(90deg)';
+}
+
+async function cobrarEfectivo(idx, clienteId, entregaId, esHoy) {
+  await marcarCobrado(idx, clienteId, entregaId, esHoy, 'efectivo');
+}
+
+async function cobrarTransferencia(idx, clienteId, entregaId, esHoy) {
+  await marcarCobrado(idx, clienteId, entregaId, esHoy, 'transferencia');
+}
+
+async function marcarCobrado(idx, clienteId, entregaId, esHoy, metodoPago) {
+  // Actualizar visualmente
+  const card   = document.getElementById('pend-card-' + idx);
+  const nombre = document.getElementById('pend-nombre-' + idx);
+  if (card)   card.style.opacity = '0.5';
+  if (nombre) nombre.style.textDecoration = 'line-through';
+
+  // Actualizar en state y Supabase
+  try {
+    if (esHoy) {
+      const today = getToday();
+      if (state.ruta[today]?.entregas[clienteId]) {
+        state.ruta[today].entregas[clienteId].pago = metodoPago;
+        await guardarEntrega(clienteId, state.ruta[today].entregas[clienteId]);
+      }
+    } else if (entregaId && entregaId !== 'undefined') {
+      await supa(`entregas?id=eq.${entregaId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ pago: metodoPago })
+      });
+    }
+    renderStats();
+  } catch(e) {
+    console.error(e);
+  }
 }
 
 // ─── Clientes ────────────────────────────────────────────────────
