@@ -651,6 +651,28 @@ function renderCobrosPendientes() {
   const list = document.getElementById('pendientes-list');
 
   const pendientes = [];
+
+  // Entregas de hoy
+  const today = getToday();
+  const entregasHoy = state.ruta[today]?.entregas || {};
+  const zonaIdHoy = getZonaHoy();
+  const zonaNombreHoy = state.zonas.find(z => z.id === zonaIdHoy)?.nombre || 'Sin zona';
+  state.clientes.forEach(c => {
+    const r = entregasHoy[c.id];
+    if (r?.entregado && r?.pago === 'pendiente') {
+      pendientes.push({
+        nombre: c.nombre,
+        bid5: r.bid5 || 0,
+        bid10: r.bid10 || 0,
+        fecha: today,
+        zona: zonaNombreHoy,
+        total: calcularTotal(r.bid5||0, r.bid10||0),
+        tel: c.tel || null
+      });
+    }
+  });
+
+  // Entregas de días anteriores
   state.historial.forEach(h => {
     h.entregas.forEach(e => {
       if (e.entregado && e.pago === 'pendiente') {
