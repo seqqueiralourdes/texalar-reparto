@@ -132,7 +132,7 @@ async function cargarDatosEmpleado() {
       nombre: c.nombre,
       dir: c.direccion,
       tel: c.telefono || '',
-      bidHab: c.bidones_habituales || 1,
+      bidHab: c.bidones_habituales ?? 0,
       bidHab10: c.bidones_habituales_10 || 0,
       orden: c.orden || 1,
       zonaId: c.zona_id
