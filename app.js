@@ -416,12 +416,16 @@ function renderRuta() {
         </div>
       </div>
 
-      <!-- Botón entregar -->
+    <!-- Botón entregar -->
       <button class="btn ${r.entregado ? 'btn-success' : 'btn-primary'} btn-block" onclick="toggleEntrega('${c.id}')">
         ${r.entregado
           ? '<i class="ti ti-check"></i> Entregado'
           : '<i class="ti ti-truck-delivery"></i> Marcar entregado'}
       </button>
+      ${r.entregado && r.pago && r.pago !== 'pendiente' ? `
+      <div style="text-align:center;margin-top:8px;color:#16a34a;font-size:13px;font-weight:600;">
+        <i class="ti ti-circle-check"></i> Cobrado — ${r.pago === 'efectivo' ? '💵 Efectivo' : '🔵 Transferencia'}
+      </div>` : ''}
     </div>`;
   }).join('');
 }
@@ -771,11 +775,17 @@ async function cobrarTransferencia(idx, clienteId, entregaId, esHoy) {
 }
 
 async function marcarCobrado(idx, clienteId, entregaId, esHoy, metodoPago) {
-  // Actualizar visualmente
+// Actualizar visualmente
   const card   = document.getElementById('pend-card-' + idx);
+  const body   = document.getElementById('pend-body-' + idx);
   const nombre = document.getElementById('pend-nombre-' + idx);
-  if (card)   card.style.opacity = '0.5';
   if (nombre) nombre.style.textDecoration = 'line-through';
+  if (body) body.innerHTML = `
+    <div style="text-align:center;padding:16px 0;color:#16a34a;font-weight:600;font-size:15px;">
+      <i class="ti ti-circle-check" style="font-size:28px;display:block;margin-bottom:6px;"></i>
+      Cobrado — ${metodoPago === 'efectivo' ? '💵 Efectivo' : '🔵 Transferencia'}
+    </div>`;
+  if (card) card.style.borderLeftColor = '#22c55e';
 
   // Actualizar en state y Supabase
   try {
