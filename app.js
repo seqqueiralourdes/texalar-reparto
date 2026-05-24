@@ -521,7 +521,8 @@ function renderStats() {
   document.getElementById('stat-entregas').textContent = totalEntregas;
   document.getElementById('stat-bid5').textContent     = totalBid5;
   document.getElementById('stat-bid10').textContent    = totalBid10;
-  document.getElementById('stat-total').textContent    = formatPeso(totalPesos);
+const totalEl = document.getElementById('stat-total');
+  totalEl.innerHTML = `<span id="total-amount">${formatPeso(totalPesos)}</span> <button onclick="toggleTotal()" style="background:none;border:none;color:white;cursor:pointer;font-size:14px;vertical-align:middle;"><i class="ti ti-eye" id="total-icon"></i></button>`;
 }
 
 // ─── Historial ───────────────────────────────────────────────────
@@ -1340,9 +1341,22 @@ async function deleteEmpleado(id) {
   showLoading(false);
 }
 
+
+let totalVisible = true;
+function toggleTotal() {
+  totalVisible = !totalVisible;
+  const amount = document.getElementById('total-amount');
+  const icon   = document.getElementById('total-icon');
+  if (amount) amount.style.filter = totalVisible ? 'none' : 'blur(6px)';
+  if (icon)   icon.className = totalVisible ? 'ti ti-eye' : 'ti ti-eye-off';
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  ARRANQUE
 // ═══════════════════════════════════════════════════════════════
+
+
+
 
 (async () => {
   const saved = localStorage.getItem('texalar_user');
