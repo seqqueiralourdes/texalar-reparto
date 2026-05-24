@@ -742,3 +742,33 @@ body {
   padding: 12px 14px;
   margin-bottom: 8px;
 }
+
+
+.pend-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  padding: 4px 0 8px;
+}
+
+.pend-header:hover { opacity: 0.85; }
+
+.pend-nombre {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.pend-detalle {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+}
+
+.pend-acciones {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
