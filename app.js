@@ -345,7 +345,7 @@ function renderRuta() {
 
   list.innerHTML = clientes.map(c => {
     const r = entregas[c.id] || {};
-    const bid5  = r.bid5  ?? c.bidHab;
+    const bid5  = r.bid5  ?? c.bidHab ?? 0;
     const bid10 = r.bid10 ?? c.bidHab10 ?? 0;
     const total = calcularTotal(bid5, bid10);
 
@@ -434,7 +434,7 @@ async function toggleEntrega(clienteId) {
     // Marcar entregado con valores actuales
     state.ruta[today].entregas[clienteId] = {
       ...r,
-      bid5: r.bid5 ?? (cliente?.bidHab || 1),
+      bid5: r.bid5 ?? (cliente?.bidHab || 0),
       bid10: r.bid10 ?? 0,
       entregado: true,
       pago: r.pago || null
