@@ -848,7 +848,7 @@ async function updateCliente(id) {
   try {
     await supa(`clientes?id=eq.${id}`, {
       method: 'PATCH',
-      body: JSON.stringify({ nombre, direccion: dir, telefono: tel||null, bidones_habituales: bid, zona_id: zonaId })
+body: JSON.stringify({ nombre, direccion: dir, telefono: tel||null, bidones_habituales: parseInt(document.getElementById('ec-bid').value)||0, bidones_habituales_10: parseInt(document.getElementById('ec-bid10').value)||0, zona_id: zonaId })
     });
     const idx = state.clientes.findIndex(c => c.id === id);
     if (idx >= 0) state.clientes[idx] = { ...state.clientes[idx], nombre, dir, tel, bidHab: bid, bidHab10: parseInt(document.getElementById('ec-bid10').value)||0, zonaId };
