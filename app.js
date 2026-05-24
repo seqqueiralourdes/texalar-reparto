@@ -521,13 +521,61 @@ function renderStats() {
 function renderHistorial() {
   const list = document.getElementById('hist-list');
 
-  if (!state.historial.length) {
+ const today = getToday();
+  const entregasHoy = state.ruta[today]?.entregas || {};
+  const zonaIdHoy = getZonaHoy();
+  const zonaNombreHoy = state.zonas.find(z => z.id === zonaIdHoy)?.nombre || 'Sin zona';
+  const clientesEntregadosHoy = state.clientes.filter(c => entregasHoy[c.id]?.entregado);
+
+  let htmlHoy = '';
+  if (clientesEntregadosHoy.length) {
+    const totalHoy = clientesEntregadosHoy.reduce((s, c) => s + calcularTotal(entregasHoy[c.id].bid5||0, entregasHoy[c.id].bid10||0), 0);
+    htmlHoy = `
+    <div class="hist-item" style="border-left:4px solid #0C447C;">
+      <div class="hist-header" onclick="toggleHist('hoy')">
+        <div>
+          <div style="font-weight:600;">Hoy</div>
+          <div style="font-size:12px;color:#888;">${zonaNombreHoy} · ${clientesEntregadosHoy.length} entregas</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <strong>${formatPeso(totalHoy)}</strong>
+          <i class="ti ti-chevron-right hist-arrow" id="hist-arrow-hoy"></i>
+        </div>
+      </div>
+      <div class="hist-body" id="hist-body-hoy" style="display:none;">
+        ${clientesEntregadosHoy.map(c => {
+          const r = entregasHoy[c.id];
+          const tot = calcularTotal(r.bid5||0, r.bid10||0);
+          const badge = r.pago === 'efectivo'
+            ? '<span class="pago-badge pago-efec">💵 Efectivo</span>'
+            : r.pago === 'transferencia'
+              ? '<span class="pago-badge pago-tr">🔵 Transferencia</span>'
+              : r.pago === 'pendiente'
+                ? '<span class="pago-badge pago-pend">⏳ Pendiente</span>'
+                : '';
+          return `
+          <div class="hist-row">
+            <div>
+              <div style="font-size:14px;">${c.nombre}</div>
+              <div style="font-size:12px;color:#888;">${r.bid5||0}×5L + ${r.bid10||0}×10L ${badge}</div>
+            </div>
+            <span style="font-weight:600;">${formatPeso(tot)}</span>
+          </div>`;
+        }).join('')}
+        <div class="hist-row hist-row-total" style="font-weight:700;font-size:15px;">
+          <span>Total</span><span>${formatPeso(totalHoy)}</span>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  if (!state.historial.length && !clientesEntregadosHoy.length) {
     list.innerHTML = '<div class="empty">Todavía no hay historial de entregas.</div>';
     return;
   }
 
-  list.innerHTML = state.historial.map((h, idx) => {
-    const uid = 'h' + idx;
+list.innerHTML = htmlHoy + state.historial.map((h, idx) => {
+  const uid = 'h' + idx;
     const total = h.entregas.reduce((s, e) => e.entregado ? s + calcularTotal(e.bid5||0, e.bid10||0) : s, 0);
     const efectivo = h.entregas.filter(e => e.entregado && e.pago === 'efectivo')
                                 .reduce((s,e) => s + calcularTotal(e.bid5||0,e.bid10||0), 0);
