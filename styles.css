@@ -269,6 +269,12 @@ body {
 .cliente-card.entregado {
   border-left-color: #22c55e;
   background: #f0fdf4;
+  opacity: 0.75;
+}
+
+.cliente-card.entregado .cliente-nombre {
+  text-decoration: line-through;
+  color: #64748b;
 }
 
 .cliente-top {
