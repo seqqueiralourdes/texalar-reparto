@@ -343,7 +343,11 @@ function renderRuta() {
     return;
   }
 
-  list.innerHTML = clientes.map(c => {
+ const pendientes = clientes.filter(c => !entregas[c.id]?.entregado);
+  const entregados = clientes.filter(c => entregas[c.id]?.entregado);
+  const clientesOrdenados = [...pendientes, ...entregados];
+
+  list.innerHTML = clientesOrdenados.map(c => {
     const r = entregas[c.id] || {};
     const bid5  = r.bid5  ?? c.bidHab ?? 0;
     const bid10 = r.bid10 ?? c.bidHab10 ?? 0;
