@@ -2,14 +2,14 @@
   "name": "Texalar Reparto",
   "short_name": "Texalar",
   "description": "App de reparto de agua para empleados de Texalar",
-  "start_url": "/texalar-reparto/",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#0C447C",
   "theme_color": "#0C447C",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/icon3-192.png"
+      "src": "/icon3-192.png",
       "sizes": "192x192",
       "type": "image/png"
     },
