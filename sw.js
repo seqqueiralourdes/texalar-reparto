@@ -1,10 +1,12 @@
-const CACHE_NAME = 'texalar-v3';
+const CACHE_NAME = 'texalar-v5';
 const ASSETS = [
-  '/texalar-reparto/',
-  '/texalar-reparto/index.html',
-  '/texalar-reparto/styles.css',
-  '/texalar-reparto/app.js',
-  '/texalar-reparto/manifest.json'
+  '/',
+  '/index.html',
+  '/styles.css',
+  '/app.js',
+  '/manifest.json',
+  '/icon3-192.png',
+  '/icon3-512.png'
 ];
 
 self.addEventListener('install', e => {
