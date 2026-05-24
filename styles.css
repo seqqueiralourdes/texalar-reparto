@@ -472,6 +472,7 @@ body {
   display: flex;
   gap: 6px;
   margin-left: 12px;
+  flex-shrink: 0;
 }
 
 /* ── Historial ── */
