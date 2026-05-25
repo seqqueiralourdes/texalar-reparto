@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-//  TEXALAR REPARTO — app.js  (versión Supabase)
+//  TEXALAR REPARTO — app.js  (versión Supabase + Offline)
 // ═══════════════════════════════════════════════════════════════
 
 // ─── Supabase config ────────────────────────────────────────────
@@ -25,17 +25,118 @@ async function supa(path, opts = {}) {
   return text ? JSON.parse(text) : [];
 }
 
+// ─── Offline / caché ────────────────────────────────────────────
+const CACHE_KEY = 'texalar_cache';
+const COLA_KEY  = 'texalar_cola_offline';
+
+function isOnline() { return navigator.onLine; }
+
+function guardarCache(datos) {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(datos)); } catch(e) {}
+}
+
+function leerCache() {
+  try {
+    const d = localStorage.getItem(CACHE_KEY);
+    return d ? JSON.parse(d) : null;
+  } catch(e) { return null; }
+}
+
+function agregarAColaOffline(operacion) {
+  try {
+    const cola = JSON.parse(localStorage.getItem(COLA_KEY) || '[]');
+    cola.push({ ...operacion, ts: Date.now() });
+    localStorage.setItem(COLA_KEY, JSON.stringify(cola));
+  } catch(e) {}
+}
+
+function leerColaOffline() {
+  try { return JSON.parse(localStorage.getItem(COLA_KEY) || '[]'); }
+  catch(e) { return []; }
+}
+
+function limpiarColaOffline() {
+  localStorage.removeItem(COLA_KEY);
+}
+
+// Sincronizar cola cuando vuelve internet
+window.addEventListener('online', async () => {
+  mostrarIndicadorConexion(true);
+  await sincronizarCola();
+});
+
+window.addEventListener('offline', () => {
+  mostrarIndicadorConexion(false);
+});
+
+function mostrarIndicadorConexion(online) {
+  let el = document.getElementById('conexion-indicator');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'conexion-indicator';
+    el.style.cssText = 'position:fixed;top:0;left:0;right:0;text-align:center;font-size:12px;font-weight:600;padding:4px;z-index:999;transition:all .3s;';
+    document.body.appendChild(el);
+  }
+  if (online) {
+    el.textContent = '✅ Conexión restaurada';
+    el.style.background = '#22c55e';
+    el.style.color = 'white';
+    setTimeout(() => { el.style.display = 'none'; }, 3000);
+  } else {
+    el.style.display = 'block';
+    el.textContent = '📵 Sin conexión — los datos se guardan localmente';
+    el.style.background = '#f59e0b';
+    el.style.color = 'white';
+  }
+}
+
+async function sincronizarCola() {
+  const cola = leerColaOffline();
+  if (!cola.length) return;
+
+  let exitosos = 0;
+  for (const op of cola) {
+    try {
+      if (op.tipo === 'entrega_insert') {
+        const rows = await supa('entregas', {
+          method: 'POST',
+          body: JSON.stringify(op.datos)
+        });
+        // Actualizar entregaId en state
+        const today = getToday();
+        if (state.ruta[today]?.entregas[op.clienteId]) {
+          state.ruta[today].entregas[op.clienteId].entregaId = rows[0]?.id;
+        }
+      } else if (op.tipo === 'entrega_update') {
+        await supa(`entregas?id=eq.${op.entregaId}`, {
+          method: 'PATCH',
+          body: JSON.stringify(op.datos)
+        });
+      }
+      exitosos++;
+    } catch(e) {
+      console.error('Error sincronizando:', e);
+    }
+  }
+
+  if (exitosos === cola.length) {
+    limpiarColaOffline();
+    // Recargar datos frescos
+    await cargarDatosEmpleado();
+    renderAll();
+  }
+}
+
 // ─── Estado en memoria ──────────────────────────────────────────
 const PRECIO_5  = 5000;
 const PRECIO_10 = 8000;
 
-let currentUser = null;   // { id, nombre, rol }
+let currentUser = null;
 let state = {
   clientes: [],
   zonas: [],
-  ruta: {},          // { "YYYY-MM-DD": { zonaId, entregas: { clienteId: {...} } } }
+  ruta: {},
   historial: [],
-  nextClienteId: 1
 };
 
 // ─── Helpers ────────────────────────────────────────────────────
@@ -69,23 +170,41 @@ async function doLogin() {
   }
 
   showLoading(true);
-  try {
-    const rows = await supa(`usuarios?nombre=eq.${encodeURIComponent(nombre)}&clave=eq.${encodeURIComponent(clave)}&select=id,nombre,rol`);
-    if (!rows.length) {
-      errEl.textContent = 'Usuario o clave incorrectos.';
-      errEl.style.display = 'block';
-      showLoading(false);
-      return;
+
+  // Intentar login online
+  if (isOnline()) {
+    try {
+      const rows = await supa(`usuarios?nombre=eq.${encodeURIComponent(nombre)}&clave=eq.${encodeURIComponent(clave)}&select=id,nombre,rol`);
+      if (!rows.length) {
+        errEl.textContent = 'Usuario o clave incorrectos.';
+        errEl.style.display = 'block';
+        showLoading(false);
+        return;
+      }
+      currentUser = rows[0];
+      localStorage.setItem('texalar_user', JSON.stringify(currentUser));
+      await iniciarSesion();
+    } catch(e) {
+      // Si falla online, intentar con caché
+      await loginDesdeCache(nombre, clave, errEl);
     }
-    currentUser = rows[0];
-    localStorage.setItem('texalar_user', JSON.stringify(currentUser));
-    await iniciarSesion();
-  } catch(e) {
-    errEl.textContent = 'Error de conexión. Verificá tu internet.';
-    errEl.style.display = 'block';
-    console.error(e);
+  } else {
+    await loginDesdeCache(nombre, clave, errEl);
   }
   showLoading(false);
+}
+
+async function loginDesdeCache(nombre, clave, errEl) {
+  const cache = leerCache();
+  if (cache?.user && cache.user.nombre === nombre) {
+    // No podemos verificar clave offline de forma segura
+    // Usamos el usuario guardado si el nombre coincide
+    currentUser = cache.user;
+    await iniciarSesionDesdeCache(cache);
+  } else {
+    errEl.textContent = 'Sin conexión. Iniciá sesión online al menos una vez.';
+    errEl.style.display = 'block';
+  }
 }
 
 document.getElementById('login-clave').addEventListener('keydown', e => {
@@ -114,18 +233,47 @@ async function iniciarSesion() {
     await cargarDatosEmpleado();
     renderFecha();
     renderAll();
+    // Mostrar indicador si está offline
+    if (!isOnline()) mostrarIndicadorConexion(false);
   }
 }
 
-// ─── Cargar datos del empleado desde Supabase ────────────────────
+async function iniciarSesionDesdeCache(cache) {
+  document.getElementById('pantalla-login').style.display = 'none';
+  document.getElementById('pantalla-app').style.display   = 'block';
+  document.getElementById('header-usuario').textContent   = currentUser.nombre;
+
+  // Cargar desde caché
+  state.zonas    = cache.zonas    || [];
+  state.clientes = cache.clientes || [];
+  state.ruta     = cache.ruta     || {};
+  state.historial= cache.historial|| [];
+
+  renderFecha();
+  renderAll();
+  mostrarIndicadorConexion(false);
+}
+
+// ─── Cargar datos del empleado ────────────────────────────────────
 async function cargarDatosEmpleado() {
   showLoading(true);
+
+  if (!isOnline()) {
+    const cache = leerCache();
+    if (cache) {
+      state.zonas    = cache.zonas    || [];
+      state.clientes = cache.clientes || [];
+      state.ruta     = cache.ruta     || {};
+      state.historial= cache.historial|| [];
+    }
+    showLoading(false);
+    return;
+  }
+
   try {
-    // Cargar zonas del empleado
     const zonas = await supa(`zonas?usuario_id=eq.${currentUser.id}&select=id,nombre&order=nombre`);
     state.zonas = zonas.map(z => ({ id: z.id, nombre: z.nombre }));
 
-    // Cargar clientes del empleado
     const clientes = await supa(`clientes?usuario_id=eq.${currentUser.id}&select=id,nombre,direccion,telefono,bidones_habituales,bidones_habituales_10,orden,zona_id&order=orden`);
     state.clientes = clientes.map(c => ({
       id: c.id,
@@ -138,14 +286,11 @@ async function cargarDatosEmpleado() {
       zonaId: c.zona_id
     }));
 
-    // Cargar entregas de los últimos 30 días
     const hace30 = new Date();
     hace30.setDate(hace30.getDate() - 30);
     const desde = hace30.toISOString().slice(0, 10);
-
     const entregas = await supa(`entregas?usuario_id=eq.${currentUser.id}&fecha=gte.${desde}&select=id,cliente_id,fecha,bid5,bid10,pago,dev_bidones,dev_canillas,entregado&order=fecha.desc`);
 
-    // Reconstruir state.ruta y state.historial desde entregas
     state.ruta = {};
     const porFecha = {};
     entregas.forEach(e => {
@@ -153,7 +298,6 @@ async function cargarDatosEmpleado() {
       porFecha[e.fecha].push(e);
     });
 
-    // Ruta de hoy
     const today = getToday();
     if (porFecha[today]) {
       const entregasHoy = {};
@@ -168,7 +312,6 @@ async function cargarDatosEmpleado() {
           devCanillas: e.dev_canillas || 0,
           entregado: e.entregado
         };
-        // Inferir zona del primer cliente entregado
         if (!zonaIdHoy) {
           const cli = state.clientes.find(c => c.id === e.cliente_id);
           if (cli) zonaIdHoy = cli.zonaId;
@@ -177,7 +320,6 @@ async function cargarDatosEmpleado() {
       state.ruta[today] = { zonaId: zonaIdHoy, entregas: entregasHoy };
     }
 
-    // Historial (días anteriores)
     state.historial = [];
     const fechas = Object.keys(porFecha).filter(f => f !== today).sort().reverse();
     fechas.forEach(fecha => {
@@ -198,7 +340,6 @@ async function cargarDatosEmpleado() {
         }
       });
       const zonaNombre = state.zonas.find(z => z.id === zonaIdDia)?.nombre || 'Sin zona';
-      // Rebuild entregas as array for historial render
       const entregasArr = state.clientes
         .filter(c => entregasMap[c.id])
         .map(c => ({
@@ -213,20 +354,90 @@ async function cargarDatosEmpleado() {
       state.historial.push({ fecha, zona: zonaNombre, zonaId: zonaIdDia, entregas: entregasArr });
     });
 
+    // Guardar en caché
+    guardarCache({
+      user: currentUser,
+      zonas: state.zonas,
+      clientes: state.clientes,
+      ruta: state.ruta,
+      historial: state.historial,
+      ts: Date.now()
+    });
+
   } catch(e) {
     console.error('Error cargando datos:', e);
-    alert('Error al cargar datos. Verificá tu conexión.');
+    // Intentar desde caché
+    const cache = leerCache();
+    if (cache) {
+      state.zonas    = cache.zonas    || [];
+      state.clientes = cache.clientes || [];
+      state.ruta     = cache.ruta     || {};
+      state.historial= cache.historial|| [];
+    }
   }
   showLoading(false);
 }
 
-// ─── Persiste entrega en Supabase ────────────────────────────────
+// ─── Guardar caché del state actual ──────────────────────────────
+function actualizarCache() {
+  const cache = leerCache() || {};
+  guardarCache({
+    ...cache,
+    user: currentUser,
+    zonas: state.zonas,
+    clientes: state.clientes,
+    ruta: state.ruta,
+    historial: state.historial,
+    ts: Date.now()
+  });
+}
+
+// ─── Persiste entrega (online o cola offline) ─────────────────────
 async function guardarEntrega(clienteId, datos) {
   const today = getToday();
   const existente = state.ruta[today]?.entregas?.[clienteId];
 
+  // Guardar en caché local siempre
+  actualizarCache();
+
+  if (!isOnline()) {
+    // Agregar a cola offline
+    if (existente?.entregaId) {
+      agregarAColaOffline({
+        tipo: 'entrega_update',
+        entregaId: existente.entregaId,
+        clienteId,
+        datos: {
+          bid5: datos.bid5 || 0,
+          bid10: datos.bid10 || 0,
+          pago: datos.pago || null,
+          dev_bidones: datos.devBidones || 0,
+          dev_canillas: datos.devCanillas || 0,
+          entregado: datos.entregado || false
+        }
+      });
+    } else {
+      agregarAColaOffline({
+        tipo: 'entrega_insert',
+        clienteId,
+        datos: {
+          cliente_id: clienteId,
+          usuario_id: currentUser.id,
+          fecha: today,
+          bid5: datos.bid5 || 0,
+          bid10: datos.bid10 || 0,
+          pago: datos.pago || null,
+          dev_bidones: datos.devBidones || 0,
+          dev_canillas: datos.devCanillas || 0,
+          entregado: datos.entregado || false
+        }
+      });
+    }
+    return;
+  }
+
+  // Online: guardar en Supabase
   if (existente?.entregaId) {
-    // UPDATE
     await supa(`entregas?id=eq.${existente.entregaId}`, {
       method: 'PATCH',
       body: JSON.stringify({
@@ -239,7 +450,6 @@ async function guardarEntrega(clienteId, datos) {
       })
     });
   } else {
-    // INSERT
     const rows = await supa('entregas', {
       method: 'POST',
       body: JSON.stringify({
@@ -257,6 +467,7 @@ async function guardarEntrega(clienteId, datos) {
     if (!state.ruta[today]) state.ruta[today] = { zonaId: null, entregas: {} };
     if (!state.ruta[today].entregas[clienteId]) state.ruta[today].entregas[clienteId] = {};
     state.ruta[today].entregas[clienteId].entregaId = rows[0]?.id;
+    actualizarCache();
   }
 }
 
@@ -316,6 +527,7 @@ function elegirZona() {
   const today = getToday();
   if (!state.ruta[today]) state.ruta[today] = { zonaId: null, entregas: {} };
   state.ruta[today].zonaId = zonaId;
+  actualizarCache();
   renderAll();
 }
 
@@ -323,6 +535,7 @@ function cambiarZona() {
   if (!confirm('¿Cambiar la zona? Las entregas ya realizadas quedan guardadas en el historial.')) return;
   const today = getToday();
   if (state.ruta[today]) state.ruta[today].zonaId = null;
+  actualizarCache();
   renderAll();
 }
 
@@ -339,11 +552,11 @@ function renderRuta() {
   const entregas = state.ruta[today]?.entregas || {};
 
   if (!clientes.length) {
-    list.innerHTML = '<div class="empty">No hay clientes en esta zona. Agregá clientes desde la sección Clientes.</div>';
+    list.innerHTML = '<div class="empty">No hay clientes en esta zona.</div>';
     return;
   }
 
- const pendientes = clientes.filter(c => !entregas[c.id]?.entregado);
+  const pendientes = clientes.filter(c => !entregas[c.id]?.entregado);
   const entregados = clientes.filter(c => entregas[c.id]?.entregado);
   const clientesOrdenados = [...pendientes, ...entregados];
 
@@ -364,7 +577,6 @@ function renderRuta() {
         <div class="cliente-total">${formatPeso(total)}</div>
       </div>
 
-      <!-- Bidones -->
       <div class="bid-grid">
         <div class="bid-row">
           <span class="bid-lbl">Bidones 5L <span class="bid-precio">${formatPeso(PRECIO_5)}/u</span></span>
@@ -384,8 +596,6 @@ function renderRuta() {
         </div>
       </div>
 
-      <!-- Pago -->
-     <!-- Pago -->
       <div class="pago-selector">
         <div class="pago-label">Pago</div>
         <div class="pago-btns">
@@ -395,7 +605,6 @@ function renderRuta() {
         </div>
       </div>
 
-    <!-- Devoluciones -->
       <div class="dev-section">
         <div class="dev-label">Devoluciones</div>
         <div class="dev-row">
@@ -416,7 +625,6 @@ function renderRuta() {
         </div>
       </div>
 
-    <!-- Botón entregar -->
       <button class="btn ${r.entregado ? 'btn-success' : 'btn-primary'} btn-block" onclick="toggleEntrega('${c.id}')">
         ${r.entregado
           ? '<i class="ti ti-check"></i> Entregado'
@@ -438,11 +646,10 @@ async function toggleEntrega(clienteId) {
   const cliente = state.clientes.find(c => c.id === clienteId);
 
   if (!r.entregado) {
-    // Marcar entregado con valores actuales
     state.ruta[today].entregas[clienteId] = {
       ...r,
       bid5: r.bid5 ?? (cliente?.bidHab || 0),
-      bid10: r.bid10 ?? 0,
+      bid10: r.bid10 ?? (cliente?.bidHab10 || 0),
       entregado: true,
       pago: r.pago || null
     };
@@ -463,19 +670,19 @@ async function setBid(clienteId, tipo, delta) {
   if (!state.ruta[today]) state.ruta[today] = { zonaId: getZonaHoy(), entregas: {} };
   if (!state.ruta[today].entregas[clienteId]) {
     const cli = state.clientes.find(c => c.id === clienteId);
-    state.ruta[today].entregas[clienteId] = { bid5: cli?.bidHab||1, bid10:0, entregado:false };
+    state.ruta[today].entregas[clienteId] = { bid5: cli?.bidHab||0, bid10: cli?.bidHab10||0, entregado: false };
   }
   const r = state.ruta[today].entregas[clienteId];
   if (tipo === 5)  r.bid5  = Math.max(0, (r.bid5  || 0) + delta);
   if (tipo === 10) r.bid10 = Math.max(0, (r.bid10 || 0) + delta);
 
-  // Actualizar UI sin re-render completo
   const el5  = document.getElementById(`bid5-${clienteId}`);
   const el10 = document.getElementById(`bid10-${clienteId}`);
   if (el5)  el5.textContent  = r.bid5;
   if (el10) el10.textContent = r.bid10;
 
-  // Guardar si ya fue entregado
+  actualizarCache();
+
   if (r.entregado) {
     try { await guardarEntrega(clienteId, r); } catch(e) { console.error(e); }
     renderStats();
@@ -484,8 +691,10 @@ async function setBid(clienteId, tipo, delta) {
 
 async function setPago(clienteId, pago) {
   const today = getToday();
-  if (!state.ruta[today]?.entregas[clienteId]) return;
+  if (!state.ruta[today]) state.ruta[today] = { zonaId: getZonaHoy(), entregas: {} };
+  if (!state.ruta[today].entregas[clienteId]) state.ruta[today].entregas[clienteId] = {};
   state.ruta[today].entregas[clienteId].pago = pago;
+  actualizarCache();
   try { await guardarEntrega(clienteId, state.ruta[today].entregas[clienteId]); } catch(e) { console.error(e); }
   renderRuta();
 }
@@ -500,6 +709,7 @@ async function setDev(clienteId, tipo, delta) {
   const elC = document.getElementById(`devCan-${clienteId}`);
   if (elB) elB.textContent = r.devBidones || 0;
   if (elC) elC.textContent = r.devCanillas || 0;
+  actualizarCache();
   try { await guardarEntrega(clienteId, r); } catch(e) { console.error(e); }
 }
 
@@ -521,15 +731,26 @@ function renderStats() {
   document.getElementById('stat-entregas').textContent = totalEntregas;
   document.getElementById('stat-bid5').textContent     = totalBid5;
   document.getElementById('stat-bid10').textContent    = totalBid10;
-const totalEl = document.getElementById('stat-total');
-  totalEl.innerHTML = `<span id="total-amount">${formatPeso(totalPesos)}</span> <button onclick="toggleTotal()" style="background:none;border:none;color:white;cursor:pointer;font-size:14px;vertical-align:middle;"><i class="ti ti-eye" id="total-icon"></i></button>`;
+
+  const totalEl = document.getElementById('stat-total');
+  const currentlyBlurred = totalEl.querySelector('#total-amount')?.style.filter === 'blur(6px)';
+  totalEl.innerHTML = `<span id="total-amount" style="filter:${currentlyBlurred?'blur(6px)':'none'}">${formatPeso(totalPesos)}</span> <button onclick="toggleTotal()" style="background:none;border:none;color:white;cursor:pointer;font-size:14px;vertical-align:middle;"><i class="ti ti-eye" id="total-icon"></i></button>`;
+}
+
+let totalVisible = true;
+function toggleTotal() {
+  totalVisible = !totalVisible;
+  const amount = document.getElementById('total-amount');
+  const icon   = document.getElementById('total-icon');
+  if (amount) amount.style.filter = totalVisible ? 'none' : 'blur(6px)';
+  if (icon)   icon.className = totalVisible ? 'ti ti-eye' : 'ti ti-eye-off';
 }
 
 // ─── Historial ───────────────────────────────────────────────────
 function renderHistorial() {
   const list = document.getElementById('hist-list');
 
- const today = getToday();
+  const today = getToday();
   const entregasHoy = state.ruta[today]?.entregas || {};
   const zonaIdHoy = getZonaHoy();
   const zonaNombreHoy = state.zonas.find(z => z.id === zonaIdHoy)?.nombre || 'Sin zona';
@@ -582,17 +803,13 @@ function renderHistorial() {
     return;
   }
 
-list.innerHTML = htmlHoy + state.historial.map((h, idx) => {
-  const uid = 'h' + idx;
+  list.innerHTML = htmlHoy + state.historial.map((h, idx) => {
+    const uid = 'h' + idx;
     const total = h.entregas.reduce((s, e) => e.entregado ? s + calcularTotal(e.bid5||0, e.bid10||0) : s, 0);
-    const efectivo = h.entregas.filter(e => e.entregado && e.pago === 'efectivo')
-                                .reduce((s,e) => s + calcularTotal(e.bid5||0,e.bid10||0), 0);
-    const transf   = h.entregas.filter(e => e.entregado && e.pago === 'transferencia')
-                                .reduce((s,e) => s + calcularTotal(e.bid5||0,e.bid10||0), 0);
-    const pendAmt  = h.entregas.filter(e => e.entregado && e.pago === 'pendiente')
-                                .reduce((s,e) => s + calcularTotal(e.bid5||0,e.bid10||0), 0);
+    const efectivo = h.entregas.filter(e => e.entregado && e.pago === 'efectivo').reduce((s,e) => s + calcularTotal(e.bid5||0,e.bid10||0), 0);
+    const transf   = h.entregas.filter(e => e.entregado && e.pago === 'transferencia').reduce((s,e) => s + calcularTotal(e.bid5||0,e.bid10||0), 0);
+    const pendAmt  = h.entregas.filter(e => e.entregado && e.pago === 'pendiente').reduce((s,e) => s + calcularTotal(e.bid5||0,e.bid10||0), 0);
     const nEntregados = h.entregas.filter(e => e.entregado).length;
-
     const [anio, mes, dia] = h.fecha.split('-');
     const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
     const fechaStr = `${dia} ${meses[parseInt(mes)-1]} ${anio}`;
@@ -628,16 +845,10 @@ list.innerHTML = htmlHoy + state.historial.map((h, idx) => {
             <span style="font-weight:600;">${formatPeso(tot)}</span>
           </div>`;
         }).join('')}
-        <div class="hist-row hist-row-total">
-          <span>💵 Efectivo</span><span>${formatPeso(efectivo)}</span>
-        </div>
-        <div class="hist-row hist-row-total">
-          <span>🔵 Transferencia</span><span>${formatPeso(transf)}</span>
-        </div>
+        <div class="hist-row hist-row-total"><span>💵 Efectivo</span><span>${formatPeso(efectivo)}</span></div>
+        <div class="hist-row hist-row-total"><span>🔵 Transferencia</span><span>${formatPeso(transf)}</span></div>
         ${pendAmt ? `<div class="hist-row hist-row-total"><span>⏳ Pendiente</span><span>${formatPeso(pendAmt)}</span></div>` : ''}
-        <div class="hist-row hist-row-total" style="font-weight:700;font-size:15px;">
-          <span>Total</span><span>${formatPeso(total)}</span>
-        </div>
+        <div class="hist-row hist-row-total" style="font-weight:700;font-size:15px;"><span>Total</span><span>${formatPeso(total)}</span></div>
       </div>
     </div>`;
   }).join('');
@@ -647,56 +858,42 @@ function toggleHist(uid) {
   const body  = document.getElementById('hist-body-' + uid);
   const arrow = document.getElementById('hist-arrow-' + uid);
   const open  = body.style.display !== 'none';
-  body.style.display  = open ? 'none' : 'block';
+  body.style.display    = open ? 'none' : 'block';
   arrow.style.transform = open ? '' : 'rotate(90deg)';
 }
 
 // ─── Cobros pendientes ────────────────────────────────────────────
 function renderCobrosPendientes() {
   const list = document.getElementById('pendientes-list');
-
   const pendientes = [];
 
-  // Entregas de hoy
   const today = getToday();
   const entregasHoy = state.ruta[today]?.entregas || {};
   const zonaIdHoy = getZonaHoy();
   const zonaNombreHoy = state.zonas.find(z => z.id === zonaIdHoy)?.nombre || 'Sin zona';
+
   state.clientes.forEach(c => {
     const r = entregasHoy[c.id];
     if (r?.entregado && r?.pago === 'pendiente') {
       pendientes.push({
-        nombre: c.nombre,
-        bid5: r.bid5 || 0,
-        bid10: r.bid10 || 0,
-        fecha: today,
-        zona: zonaNombreHoy,
+        nombre: c.nombre, bid5: r.bid5||0, bid10: r.bid10||0,
+        fecha: today, zona: zonaNombreHoy,
         total: calcularTotal(r.bid5||0, r.bid10||0),
-        tel: c.tel || null,
-        clienteId: c.id,
-        esHoy: true,
-        cobrado: false
+        tel: c.tel||null, clienteId: c.id, esHoy: true
       });
     }
   });
 
-  // Entregas de días anteriores
   state.historial.forEach(h => {
     h.entregas.forEach(e => {
       if (e.entregado && e.pago === 'pendiente') {
         const cli = state.clientes.find(c => c.nombre === e.nombre);
         pendientes.push({
-          nombre: e.nombre,
-          bid5: e.bid5 || 0,
-          bid10: e.bid10 || 0,
-          fecha: h.fecha,
-          zona: h.zona,
+          nombre: e.nombre, bid5: e.bid5||0, bid10: e.bid10||0,
+          fecha: h.fecha, zona: h.zona,
           total: calcularTotal(e.bid5||0, e.bid10||0),
-          tel: cli?.tel || null,
-          clienteId: cli?.id || null,
-          entregaId: e.entregaId,
-          esHoy: false,
-          cobrado: false
+          tel: cli?.tel||null, clienteId: cli?.id||null,
+          entregaId: e.entregaId, esHoy: false
         });
       }
     });
@@ -732,27 +929,14 @@ function renderCobrosPendientes() {
         </div>
         <div class="pend-body" id="pend-body-${idx}" style="display:none;">
           <div class="pend-detalle">
-            <div class="hist-row">
-              <span>Bidones 5L</span><span>${p.bid5} × ${formatPeso(PRECIO_5)} = ${formatPeso(p.bid5 * PRECIO_5)}</span>
-            </div>
-            <div class="hist-row">
-              <span>Bidones 10L</span><span>${p.bid10} × ${formatPeso(PRECIO_10)} = ${formatPeso(p.bid10 * PRECIO_10)}</span>
-            </div>
-            <div class="hist-row hist-row-total">
-              <strong>Total</strong><strong>${formatPeso(p.total)}</strong>
-            </div>
+            <div class="hist-row"><span>Bidones 5L</span><span>${p.bid5} × ${formatPeso(PRECIO_5)} = ${formatPeso(p.bid5*PRECIO_5)}</span></div>
+            <div class="hist-row"><span>Bidones 10L</span><span>${p.bid10} × ${formatPeso(PRECIO_10)} = ${formatPeso(p.bid10*PRECIO_10)}</span></div>
+            <div class="hist-row hist-row-total"><strong>Total</strong><strong>${formatPeso(p.total)}</strong></div>
           </div>
           <div class="pend-acciones">
-            ${p.tel ? `
-            <a href="tel:${p.tel}" class="btn btn-outline btn-sm" style="flex:1;">
-              <i class="ti ti-phone"></i> ${p.tel}
-            </a>` : ''}
-            <button class="btn btn-sm" style="flex:1;background:#dcfce7;color:#166534;border:none;" onclick="cobrarEfectivo(${idx}, '${p.clienteId}', '${p.entregaId||''}', ${p.esHoy})">
-              💵 Cobrar efectivo
-            </button>
-            <button class="btn btn-sm" style="flex:1;background:#dbeafe;color:#1e40af;border:none;" onclick="cobrarTransferencia(${idx}, '${p.clienteId}', '${p.entregaId||''}', ${p.esHoy})">
-              🔵 Transferencia
-            </button>
+            ${p.tel ? `<a href="tel:${p.tel}" class="btn btn-outline btn-sm" style="flex:1;"><i class="ti ti-phone"></i> ${p.tel}</a>` : ''}
+            <button class="btn btn-sm" style="flex:1;background:#dcfce7;color:#166534;border:none;" onclick="cobrarEfectivo(${idx},'${p.clienteId}','${p.entregaId||''}',${p.esHoy})">💵 Cobrar efectivo</button>
+            <button class="btn btn-sm" style="flex:1;background:#dbeafe;color:#1e40af;border:none;" onclick="cobrarTransferencia(${idx},'${p.clienteId}','${p.entregaId||''}',${p.esHoy})">🔵 Transferencia</button>
           </div>
         </div>
       </div>`;
@@ -770,16 +954,14 @@ function togglePend(idx) {
 async function cobrarEfectivo(idx, clienteId, entregaId, esHoy) {
   await marcarCobrado(idx, clienteId, entregaId, esHoy, 'efectivo');
 }
-
 async function cobrarTransferencia(idx, clienteId, entregaId, esHoy) {
   await marcarCobrado(idx, clienteId, entregaId, esHoy, 'transferencia');
 }
 
 async function marcarCobrado(idx, clienteId, entregaId, esHoy, metodoPago) {
-// Actualizar visualmente
-  const card   = document.getElementById('pend-card-' + idx);
   const body   = document.getElementById('pend-body-' + idx);
   const nombre = document.getElementById('pend-nombre-' + idx);
+  const card   = document.getElementById('pend-card-' + idx);
   if (nombre) nombre.style.textDecoration = 'line-through';
   if (body) body.innerHTML = `
     <div style="text-align:center;padding:16px 0;color:#16a34a;font-weight:600;font-size:15px;">
@@ -788,7 +970,6 @@ async function marcarCobrado(idx, clienteId, entregaId, esHoy, metodoPago) {
     </div>`;
   if (card) card.style.borderLeftColor = '#22c55e';
 
-  // Actualizar en state y Supabase
   try {
     if (esHoy) {
       const today = getToday();
@@ -797,15 +978,18 @@ async function marcarCobrado(idx, clienteId, entregaId, esHoy, metodoPago) {
         await guardarEntrega(clienteId, state.ruta[today].entregas[clienteId]);
       }
     } else if (entregaId && entregaId !== 'undefined') {
-      await supa(`entregas?id=eq.${entregaId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ pago: metodoPago })
-      });
+      if (isOnline()) {
+        await supa(`entregas?id=eq.${entregaId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ pago: metodoPago })
+        });
+      } else {
+        agregarAColaOffline({ tipo: 'entrega_update', entregaId, datos: { pago: metodoPago } });
+      }
     }
+    actualizarCache();
     renderStats();
-  } catch(e) {
-    console.error(e);
-  }
+  } catch(e) { console.error(e); }
 }
 
 // ─── Clientes ────────────────────────────────────────────────────
@@ -815,14 +999,12 @@ function renderClientes() {
     list.innerHTML = '<div class="empty">No hay clientes. Agregá el primero.</div>';
     return;
   }
-
   const porZona = {};
   state.clientes.forEach(c => {
     const z = state.zonas.find(z => z.id === c.zonaId)?.nombre || 'Sin zona';
     if (!porZona[z]) porZona[z] = [];
     porZona[z].push(c);
   });
-
   list.innerHTML = Object.entries(porZona).map(([zona, clientes]) => `
     <div style="margin-bottom:16px;">
       <div class="zona-header">${zona}</div>
@@ -832,7 +1014,7 @@ function renderClientes() {
             <div class="item-nombre">${c.nombre}</div>
             <div class="item-sub"><i class="ti ti-map-pin"></i> ${c.dir}</div>
             ${c.tel ? `<div class="item-sub"><i class="ti ti-phone"></i> ${c.tel}</div>` : ''}
-            <div class="item-sub"><i class="ti ti-droplet"></i> ${c.bidHab} bidón(es) 5L habitual(es)</div>
+            <div class="item-sub"><i class="ti ti-droplet"></i> ${c.bidHab} × 5L · ${c.bidHab10} × 10L habituales</div>
           </div>
           <div class="item-actions">
             <button class="icon-btn" onclick="editCliente('${c.id}')"><i class="ti ti-pencil"></i></button>
@@ -845,28 +1027,12 @@ function renderClientes() {
 function showAddCliente() {
   openModal(`
     <div class="modal-title">Nuevo cliente</div>
-    <div class="field-group">
-      <label class="field-label">Nombre *</label>
-      <input id="nc-nombre" class="input" placeholder="Ej: María García">
-    </div>
-    <div class="field-group">
-      <label class="field-label">Dirección *</label>
-      <input id="nc-dir" class="input" placeholder="Ej: Av. San Martín 1234">
-    </div>
-    <div class="field-group">
-      <label class="field-label">Teléfono</label>
-      <input id="nc-tel" class="input" type="tel" placeholder="Ej: 11 4523-1890">
-    </div>
-    <div class="field-group">
-      <label class="field-label">Bidones 5L habituales</label>
-      <input id="nc-bid" class="input" type="number" min="0" value="0">
-    </div>
-    <div class="field-group">
-      <label class="field-label">Bidones 10L habituales</label>
-      <input id="nc-bid10" class="input" type="number" min="0" value="0">
-    </div>
-    <div class="field-group">
-      <label class="field-label">Zona</label>
+    <div class="field-group"><label class="field-label">Nombre *</label><input id="nc-nombre" class="input" placeholder="Ej: María García"></div>
+    <div class="field-group"><label class="field-label">Dirección *</label><input id="nc-dir" class="input" placeholder="Ej: Av. San Martín 1234"></div>
+    <div class="field-group"><label class="field-label">Teléfono</label><input id="nc-tel" class="input" type="tel" placeholder="Ej: 11 4523-1890"></div>
+    <div class="field-group"><label class="field-label">Bidones 5L habituales</label><input id="nc-bid" class="input" type="number" min="0" value="0"></div>
+    <div class="field-group"><label class="field-label">Bidones 10L habituales</label><input id="nc-bid10" class="input" type="number" min="0" value="0"></div>
+    <div class="field-group"><label class="field-label">Zona</label>
       <select id="nc-zona" class="input">
         <option value="">Sin zona</option>
         ${state.zonas.map(z => `<option value="${z.id}">${z.nombre}</option>`).join('')}
@@ -883,7 +1049,8 @@ async function saveCliente() {
   const nombre = document.getElementById('nc-nombre').value.trim();
   const dir    = document.getElementById('nc-dir').value.trim();
   const tel    = document.getElementById('nc-tel').value.trim();
-  const bid    = parseInt(document.getElementById('nc-bid').value) || 1;
+  const bid    = parseInt(document.getElementById('nc-bid').value) || 0;
+  const bid10  = parseInt(document.getElementById('nc-bid10').value) || 0;
   const zonaId = document.getElementById('nc-zona').value || null;
   if (!nombre || !dir) { alert('Nombre y dirección son obligatorios.'); return; }
 
@@ -891,19 +1058,10 @@ async function saveCliente() {
   try {
     const rows = await supa('clientes', {
       method: 'POST',
-      body: JSON.stringify({
-        nombre, direccion: dir, telefono: tel || null,
-        bidones_habituales: bid,
-        bidones_habituales_10: parseInt(document.getElementById('nc-bid10').value) || 0,
-        orden: state.clientes.length + 1,
-        zona_id: zonaId,
-        usuario_id: currentUser.id
-      })
+      body: JSON.stringify({ nombre, direccion: dir, telefono: tel||null, bidones_habituales: bid, bidones_habituales_10: bid10, orden: state.clientes.length+1, zona_id: zonaId, usuario_id: currentUser.id })
     });
-    state.clientes.push({
-      id: rows[0].id, nombre, dir, tel: tel||'', bidHab: bid,
-      orden: state.clientes.length + 1, zonaId
-    });
+    state.clientes.push({ id: rows[0].id, nombre, dir, tel: tel||'', bidHab: bid, bidHab10: bid10, orden: state.clientes.length+1, zonaId });
+    actualizarCache();
     closeModal();
     renderClientes();
     renderRuta();
@@ -916,28 +1074,12 @@ function editCliente(id) {
   if (!c) return;
   openModal(`
     <div class="modal-title">Editar cliente</div>
-    <div class="field-group">
-      <label class="field-label">Nombre *</label>
-      <input id="ec-nombre" class="input" value="${c.nombre}">
-    </div>
-    <div class="field-group">
-      <label class="field-label">Dirección *</label>
-      <input id="ec-dir" class="input" value="${c.dir}">
-    </div>
-    <div class="field-group">
-      <label class="field-label">Teléfono</label>
-      <input id="ec-tel" class="input" type="tel" value="${c.tel||''}">
-    </div>
-    <div class="field-group">
-      <label class="field-label">Bidones 5L habituales</label>
-      <input id="ec-bid" class="input" type="number" min="0" value="${c.bidHab}">
-    </div>
-    <div class="field-group">
-      <label class="field-label">Bidones 10L habituales</label>
-      <input id="ec-bid10" class="input" type="number" min="0" value="${c.bidHab10 || 0}">
-    </div>
-    <div class="field-group">
-      <label class="field-label">Zona</label>
+    <div class="field-group"><label class="field-label">Nombre *</label><input id="ec-nombre" class="input" value="${c.nombre}"></div>
+    <div class="field-group"><label class="field-label">Dirección *</label><input id="ec-dir" class="input" value="${c.dir}"></div>
+    <div class="field-group"><label class="field-label">Teléfono</label><input id="ec-tel" class="input" type="tel" value="${c.tel||''}"></div>
+    <div class="field-group"><label class="field-label">Bidones 5L habituales</label><input id="ec-bid" class="input" type="number" min="0" value="${c.bidHab}"></div>
+    <div class="field-group"><label class="field-label">Bidones 10L habituales</label><input id="ec-bid10" class="input" type="number" min="0" value="${c.bidHab10||0}"></div>
+    <div class="field-group"><label class="field-label">Zona</label>
       <select id="ec-zona" class="input">
         <option value="">Sin zona</option>
         ${state.zonas.map(z => `<option value="${z.id}" ${z.id === c.zonaId ? 'selected' : ''}>${z.nombre}</option>`).join('')}
@@ -954,7 +1096,8 @@ async function updateCliente(id) {
   const nombre = document.getElementById('ec-nombre').value.trim();
   const dir    = document.getElementById('ec-dir').value.trim();
   const tel    = document.getElementById('ec-tel').value.trim();
-  const bid    = parseInt(document.getElementById('ec-bid').value) || 1;
+  const bid    = parseInt(document.getElementById('ec-bid').value) || 0;
+  const bid10  = parseInt(document.getElementById('ec-bid10').value) || 0;
   const zonaId = document.getElementById('ec-zona').value || null;
   if (!nombre || !dir) { alert('Nombre y dirección son obligatorios.'); return; }
 
@@ -962,10 +1105,11 @@ async function updateCliente(id) {
   try {
     await supa(`clientes?id=eq.${id}`, {
       method: 'PATCH',
-body: JSON.stringify({ nombre, direccion: dir, telefono: tel||null, bidones_habituales: parseInt(document.getElementById('ec-bid').value)||0, bidones_habituales_10: parseInt(document.getElementById('ec-bid10').value)||0, zona_id: zonaId })
+      body: JSON.stringify({ nombre, direccion: dir, telefono: tel||null, bidones_habituales: bid, bidones_habituales_10: bid10, zona_id: zonaId })
     });
     const idx = state.clientes.findIndex(c => c.id === id);
-    if (idx >= 0) state.clientes[idx] = { ...state.clientes[idx], nombre, dir, tel, bidHab: bid, bidHab10: parseInt(document.getElementById('ec-bid10').value)||0, zonaId };
+    if (idx >= 0) state.clientes[idx] = { ...state.clientes[idx], nombre, dir, tel, bidHab: bid, bidHab10: bid10, zonaId };
+    actualizarCache();
     closeModal();
     renderClientes();
     renderRuta();
@@ -974,11 +1118,12 @@ body: JSON.stringify({ nombre, direccion: dir, telefono: tel||null, bidones_habi
 }
 
 async function deleteCliente(id) {
-  if (!confirm('¿Eliminar este cliente? Se borrarán todas sus entregas.')) return;
+  if (!confirm('¿Eliminar este cliente?')) return;
   showLoading(true);
   try {
     await supa(`clientes?id=eq.${id}`, { method: 'DELETE' });
     state.clientes = state.clientes.filter(c => c.id !== id);
+    actualizarCache();
     renderClientes();
     renderRuta();
   } catch(e) { alert('Error al eliminar cliente.'); console.error(e); }
@@ -988,10 +1133,7 @@ async function deleteCliente(id) {
 // ─── Zonas ──────────────────────────────────────────────────────
 function renderZonas() {
   const list = document.getElementById('zonas-list');
-  if (!state.zonas.length) {
-    list.innerHTML = '<div class="empty">No hay zonas. Agregá la primera.</div>';
-    return;
-  }
+  if (!state.zonas.length) { list.innerHTML = '<div class="empty">No hay zonas.</div>'; return; }
   list.innerHTML = state.zonas.map(z => {
     const cant = state.clientes.filter(c => c.zonaId === z.id).length;
     return `
@@ -1011,10 +1153,7 @@ function renderZonas() {
 function showAddZona() {
   openModal(`
     <div class="modal-title">Nueva zona</div>
-    <div class="field-group">
-      <label class="field-label">Nombre *</label>
-      <input id="nz-nombre" class="input" placeholder="Ej: Barrio Norte">
-    </div>
+    <div class="field-group"><label class="field-label">Nombre *</label><input id="nz-nombre" class="input" placeholder="Ej: Barrio Norte"></div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
       <button class="btn btn-primary" onclick="saveZona()">Guardar</button>
@@ -1027,11 +1166,9 @@ async function saveZona() {
   if (!nombre) { alert('El nombre es obligatorio.'); return; }
   showLoading(true);
   try {
-    const rows = await supa('zonas', {
-      method: 'POST',
-      body: JSON.stringify({ nombre, usuario_id: currentUser.id })
-    });
+    const rows = await supa('zonas', { method: 'POST', body: JSON.stringify({ nombre, usuario_id: currentUser.id }) });
     state.zonas.push({ id: rows[0].id, nombre });
+    actualizarCache();
     closeModal();
     renderZonas();
     renderSelectorZona();
@@ -1044,10 +1181,7 @@ function editZona(id) {
   if (!z) return;
   openModal(`
     <div class="modal-title">Editar zona</div>
-    <div class="field-group">
-      <label class="field-label">Nombre *</label>
-      <input id="ez-nombre" class="input" value="${z.nombre}">
-    </div>
+    <div class="field-group"><label class="field-label">Nombre *</label><input id="ez-nombre" class="input" value="${z.nombre}"></div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
       <button class="btn btn-primary" onclick="updateZona('${id}')">Guardar</button>
@@ -1063,6 +1197,7 @@ async function updateZona(id) {
     await supa(`zonas?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ nombre }) });
     const idx = state.zonas.findIndex(z => z.id === id);
     if (idx >= 0) state.zonas[idx].nombre = nombre;
+    actualizarCache();
     closeModal();
     renderZonas();
     renderSelectorZona();
@@ -1072,12 +1207,13 @@ async function updateZona(id) {
 }
 
 async function deleteZona(id) {
-  if (!confirm('¿Eliminar esta zona? Los clientes quedarán sin zona asignada.')) return;
+  if (!confirm('¿Eliminar esta zona?')) return;
   showLoading(true);
   try {
     await supa(`zonas?id=eq.${id}`, { method: 'DELETE' });
     state.zonas = state.zonas.filter(z => z.id !== id);
     state.clientes.forEach(c => { if (c.zonaId === id) c.zonaId = null; });
+    actualizarCache();
     renderZonas();
     renderClientes();
     renderSelectorZona();
@@ -1085,21 +1221,19 @@ async function deleteZona(id) {
   showLoading(false);
 }
 
-// ─── Exportar resumen ────────────────────────────────────────────
+// ─── Exportar ────────────────────────────────────────────────────
 function exportarResumen() {
   const today    = getToday();
   const zonaId   = getZonaHoy();
   const zona     = state.zonas.find(z => z.id === zonaId);
   const entregas = state.ruta[today]?.entregas || {};
   const clientes = clientesDeZona(zonaId);
-
   const [anio, mes, dia] = today.split('-');
   const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
   const fechaStr = `${dia} de ${meses[parseInt(mes)-1]} de ${anio}`;
 
   let txt = `📦 TEXALAR REPARTO — ${fechaStr}\n`;
-  txt += `Empleado: ${currentUser.nombre}\n`;
-  txt += `Zona: ${zona?.nombre || '—'}\n`;
+  txt += `Empleado: ${currentUser.nombre}\nZona: ${zona?.nombre || '—'}\n`;
   txt += '─'.repeat(32) + '\n';
 
   let totalPesos = 0, totalBid5 = 0, totalBid10 = 0;
@@ -1107,11 +1241,8 @@ function exportarResumen() {
     const r = entregas[c.id];
     if (r?.entregado) {
       const tot = calcularTotal(r.bid5||0, r.bid10||0);
-      totalPesos += tot;
-      totalBid5  += r.bid5  || 0;
-      totalBid10 += r.bid10 || 0;
-      txt += `✅ ${c.nombre}\n`;
-      txt += `   ${r.bid5||0}×5L + ${r.bid10||0}×10L = ${formatPeso(tot)}`;
+      totalPesos += tot; totalBid5 += r.bid5||0; totalBid10 += r.bid10||0;
+      txt += `✅ ${c.nombre}\n   ${r.bid5||0}×5L + ${r.bid10||0}×10L = ${formatPeso(tot)}`;
       if (r.pago) txt += ` (${r.pago})`;
       txt += '\n';
     } else {
@@ -1122,11 +1253,11 @@ function exportarResumen() {
   txt += '─'.repeat(32) + '\n';
   txt += `Total: ${totalBid5}×5L + ${totalBid10}×10L = ${formatPeso(totalPesos)}\n`;
 
-  if (navigator.share) {
-    navigator.share({ text: txt });
-  } else {
-    navigator.clipboard?.writeText(txt).then(() => alert('Resumen copiado al portapapeles ✅'));
-  }
+  navigator.clipboard?.writeText(txt).then(() => {
+    alert('Resumen copiado al portapapeles ✅');
+  }).catch(() => {
+    if (navigator.share) navigator.share({ text: txt });
+  });
 }
 
 // ─── Navegación ──────────────────────────────────────────────────
@@ -1137,22 +1268,20 @@ function showTab(tab, btn) {
   btn.classList.add('active');
   const exp = document.getElementById('exportar-wrap');
   if (exp) exp.style.display = (tab === 'ruta' && getZonaHoy()) ? 'block' : 'none';
-
   if (tab === 'historial')  renderHistorial();
   if (tab === 'pendientes') renderCobrosPendientes();
 }
 
 function renderFecha() {
-  const dias   = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
-  const meses  = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-  const hoy    = new Date();
-  const str    = `${dias[hoy.getDay()]} ${hoy.getDate()} de ${meses[hoy.getMonth()]}`;
-  document.getElementById('fecha-hoy').textContent  = str;
+  const dias  = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const hoy   = new Date();
+  const str   = `${dias[hoy.getDay()]} ${hoy.getDate()} de ${meses[hoy.getMonth()]}`;
+  document.getElementById('fecha-hoy').textContent = str;
   const adminFecha = document.getElementById('admin-fecha');
   if (adminFecha) adminFecha.textContent = str;
 }
 
-// ─── Modal ──────────────────────────────────────────────────────
 function openModal(html) {
   document.getElementById('modal-content').innerHTML = html;
   document.getElementById('modal-overlay').style.display = 'block';
@@ -1166,19 +1295,13 @@ function closeModal() {
 // ═══════════════════════════════════════════════════════════════
 //  PANEL ADMIN
 // ═══════════════════════════════════════════════════════════════
-
 async function cargarAdmin() {
   renderFecha();
   showLoading(true);
   try {
-    // Cargar todos los empleados
     const empleados = await supa('usuarios?rol=eq.empleado&select=id,nombre&order=nombre');
     renderAdminEmpleados(empleados);
-
-    // Resumen de hoy
     await cargarResumenHoy(empleados);
-
-    // Historial general (últimos 14 días)
     await cargarHistorialAdmin(empleados);
   } catch(e) {
     console.error(e);
@@ -1189,29 +1312,20 @@ async function cargarAdmin() {
 
 async function cargarResumenHoy(empleados) {
   const today = getToday();
-  const el    = document.getElementById('admin-resumen-hoy');
-
+  const el = document.getElementById('admin-resumen-hoy');
   try {
     const entregas = await supa(`entregas?fecha=eq.${today}&select=usuario_id,bid5,bid10,pago,entregado`);
-    if (!entregas.length) {
-      el.innerHTML = '<div class="empty">Sin entregas registradas hoy.</div>';
-      return;
-    }
-
-    let html = '';
-    let totalGeneral = 0;
-
+    if (!entregas.length) { el.innerHTML = '<div class="empty">Sin entregas registradas hoy.</div>'; return; }
+    let html = '', totalGeneral = 0;
     empleados.forEach(emp => {
       const ents = entregas.filter(e => e.usuario_id === emp.id && e.entregado);
       if (!ents.length) return;
       const total  = ents.reduce((s,e) => s + calcularTotal(e.bid5||0, e.bid10||0), 0);
-      const efect  = ents.filter(e => e.pago === 'efectivo').reduce((s,e) => s + calcularTotal(e.bid5||0,e.bid10||0), 0);
-      const transf = ents.filter(e => e.pago === 'transferencia').reduce((s,e) => s + calcularTotal(e.bid5||0,e.bid10||0), 0);
-      const pend   = ents.filter(e => e.pago === 'pendiente').reduce((s,e) => s + calcularTotal(e.bid5||0,e.bid10||0), 0);
+      const efect  = ents.filter(e => e.pago==='efectivo').reduce((s,e) => s + calcularTotal(e.bid5||0,e.bid10||0), 0);
+      const transf = ents.filter(e => e.pago==='transferencia').reduce((s,e) => s + calcularTotal(e.bid5||0,e.bid10||0), 0);
+      const pend   = ents.filter(e => e.pago==='pendiente').reduce((s,e) => s + calcularTotal(e.bid5||0,e.bid10||0), 0);
       totalGeneral += total;
-
-      html += `
-      <div class="admin-emp-card">
+      html += `<div class="admin-emp-card">
         <div class="admin-emp-nombre">${emp.nombre}</div>
         <div class="admin-stat-row"><span>${ents.length} entregas</span><span>${formatPeso(total)}</span></div>
         ${efect  ? `<div class="admin-stat-row admin-stat-sub"><span>💵 Efectivo</span><span>${formatPeso(efect)}</span></div>` : ''}
@@ -1219,78 +1333,47 @@ async function cargarResumenHoy(empleados) {
         ${pend   ? `<div class="admin-stat-row admin-stat-sub"><span>⏳ Pendiente</span><span>${formatPeso(pend)}</span></div>` : ''}
       </div>`;
     });
-
     html += `<div class="admin-total-banner"><span>Total del día</span><strong>${formatPeso(totalGeneral)}</strong></div>`;
     el.innerHTML = html;
-
-  } catch(e) {
-    el.innerHTML = '<div class="empty">Error al cargar resumen.</div>';
-    console.error(e);
-  }
+  } catch(e) { el.innerHTML = '<div class="empty">Error al cargar resumen.</div>'; }
 }
 
 async function cargarHistorialAdmin(empleados) {
-  const hace14 = new Date();
-  hace14.setDate(hace14.getDate() - 14);
-  const desde  = hace14.toISOString().slice(0, 10);
-  const today  = getToday();
-  const el     = document.getElementById('admin-historial');
-
+  const hace14 = new Date(); hace14.setDate(hace14.getDate()-14);
+  const desde = hace14.toISOString().slice(0,10);
+  const today = getToday();
+  const el = document.getElementById('admin-historial');
   try {
     const entregas = await supa(`entregas?fecha=gte.${desde}&fecha=lt.${today}&select=usuario_id,fecha,bid5,bid10,pago,entregado&order=fecha.desc`);
-    if (!entregas.length) {
-      el.innerHTML = '<div class="empty">Sin historial en los últimos 14 días.</div>';
-      return;
-    }
-
-    // Agrupar por fecha
+    if (!entregas.length) { el.innerHTML = '<div class="empty">Sin historial en los últimos 14 días.</div>'; return; }
     const porFecha = {};
-    entregas.forEach(e => {
-      if (!porFecha[e.fecha]) porFecha[e.fecha] = [];
-      porFecha[e.fecha].push(e);
-    });
-
+    entregas.forEach(e => { if (!porFecha[e.fecha]) porFecha[e.fecha]=[]; porFecha[e.fecha].push(e); });
     el.innerHTML = Object.keys(porFecha).sort().reverse().map(fecha => {
-      const [anio, mes, dia] = fecha.split('-');
+      const [anio,mes,dia] = fecha.split('-');
       const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
       const fechaStr = `${dia} ${meses[parseInt(mes)-1]} ${anio}`;
       const entsF = porFecha[fecha].filter(e => e.entregado);
       const totalF = entsF.reduce((s,e) => s + calcularTotal(e.bid5||0, e.bid10||0), 0);
-
       const porEmp = empleados.map(emp => {
         const ents = entsF.filter(e => e.usuario_id === emp.id);
         if (!ents.length) return '';
         const tot = ents.reduce((s,e) => s + calcularTotal(e.bid5||0, e.bid10||0), 0);
         return `<div class="admin-stat-row admin-stat-sub"><span>${emp.nombre}</span><span>${formatPeso(tot)}</span></div>`;
       }).join('');
-
-      return `
-      <div class="admin-hist-item">
-        <div class="admin-stat-row" style="font-weight:600;margin-bottom:4px;">
-          <span>${fechaStr}</span><span>${formatPeso(totalF)}</span>
-        </div>
+      return `<div class="admin-hist-item">
+        <div class="admin-stat-row" style="font-weight:600;margin-bottom:4px;"><span>${fechaStr}</span><span>${formatPeso(totalF)}</span></div>
         ${porEmp}
       </div>`;
     }).join('');
-
-  } catch(e) {
-    el.innerHTML = '<div class="empty">Error al cargar historial.</div>';
-    console.error(e);
-  }
+  } catch(e) { el.innerHTML = '<div class="empty">Error al cargar historial.</div>'; }
 }
 
 function renderAdminEmpleados(empleados) {
   const list = document.getElementById('admin-empleados-list');
-  if (!empleados.length) {
-    list.innerHTML = '<div class="empty">No hay empleados registrados.</div>';
-    return;
-  }
+  if (!empleados.length) { list.innerHTML = '<div class="empty">No hay empleados.</div>'; return; }
   list.innerHTML = empleados.map(e => `
     <div class="item-card">
-      <div class="item-info">
-        <div class="item-nombre">${e.nombre}</div>
-        <div class="item-sub">Empleado</div>
-      </div>
+      <div class="item-info"><div class="item-nombre">${e.nombre}</div><div class="item-sub">Empleado</div></div>
       <button class="icon-btn icon-btn-danger" onclick="deleteEmpleado('${e.id}')"><i class="ti ti-trash"></i></button>
     </div>`).join('');
 }
@@ -1298,14 +1381,8 @@ function renderAdminEmpleados(empleados) {
 function showAddEmpleado() {
   openModal(`
     <div class="modal-title">Nuevo empleado</div>
-    <div class="field-group">
-      <label class="field-label">Nombre *</label>
-      <input id="ne-nombre" class="input" placeholder="Ej: Juan López">
-    </div>
-    <div class="field-group">
-      <label class="field-label">Clave *</label>
-      <input id="ne-clave" class="input" type="password" placeholder="Mínimo 4 caracteres">
-    </div>
+    <div class="field-group"><label class="field-label">Nombre *</label><input id="ne-nombre" class="input" placeholder="Ej: Juan López"></div>
+    <div class="field-group"><label class="field-label">Clave *</label><input id="ne-clave" class="input" type="password" placeholder="Mínimo 4 caracteres"></div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
       <button class="btn btn-primary" onclick="saveEmpleado()">Crear</button>
@@ -1318,13 +1395,9 @@ async function saveEmpleado() {
   const clave  = document.getElementById('ne-clave').value.trim();
   if (!nombre || !clave) { alert('Nombre y clave son obligatorios.'); return; }
   if (clave.length < 4)  { alert('La clave debe tener al menos 4 caracteres.'); return; }
-
   showLoading(true);
   try {
-    await supa('usuarios', {
-      method: 'POST',
-      body: JSON.stringify({ nombre, clave, rol: 'empleado' })
-    });
+    await supa('usuarios', { method: 'POST', body: JSON.stringify({ nombre, clave, rol: 'empleado' }) });
     closeModal();
     await cargarAdmin();
   } catch(e) { alert('Error al crear empleado.'); console.error(e); }
@@ -1332,7 +1405,7 @@ async function saveEmpleado() {
 }
 
 async function deleteEmpleado(id) {
-  if (!confirm('¿Eliminar este empleado? Se borrarán todos sus datos.')) return;
+  if (!confirm('¿Eliminar este empleado?')) return;
   showLoading(true);
   try {
     await supa(`usuarios?id=eq.${id}`, { method: 'DELETE' });
@@ -1341,18 +1414,7 @@ async function deleteEmpleado(id) {
   showLoading(false);
 }
 
-
-let totalVisible = true;
-function toggleTotal() {
-  totalVisible = !totalVisible;
-  const amount = document.getElementById('total-amount');
-  const icon   = document.getElementById('total-icon');
-  if (amount) amount.style.filter = totalVisible ? 'none' : 'blur(6px)';
-  if (icon)   icon.className = totalVisible ? 'ti ti-eye' : 'ti ti-eye-off';
-}
-
-
-// ─── Banner de instalación ───────────────────────────────────
+// ─── Banner instalación ──────────────────────────────────────────
 let deferredPrompt = null;
 
 window.addEventListener('beforeinstallprompt', (e) => {
@@ -1393,21 +1455,18 @@ function cerrarBanner() {
   localStorage.setItem('banner_cerrado', '1');
 }
 
-
-
 // ═══════════════════════════════════════════════════════════════
 //  ARRANQUE
 // ═══════════════════════════════════════════════════════════════
-
-
-
-
 (async () => {
+  // Mostrar banner de instalación después de 3 segundos
   if (!localStorage.getItem('banner_cerrado')) {
     setTimeout(() => {
-      document.getElementById('install-banner').style.display = 'flex';
+      const banner = document.getElementById('install-banner');
+      if (banner) banner.style.display = 'flex';
     }, 3000);
   }
+
   const saved = localStorage.getItem('texalar_user');
   if (saved) {
     try {
@@ -1416,5 +1475,10 @@ function cerrarBanner() {
     } catch(e) {
       localStorage.removeItem('texalar_user');
     }
+  }
+
+  // Sincronizar cola si hay internet
+  if (isOnline()) {
+    await sincronizarCola();
   }
 })();
