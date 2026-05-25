@@ -665,7 +665,12 @@ async function toggleEntrega(clienteId) {
   renderStats();
 }
 
+let setBidLock = false;
 async function setBid(clienteId, tipo, delta) {
+  if (setBidLock) return;
+  setBidLock = true;
+  setTimeout(() => { setBidLock = false; }, 400);
+
   const today = getToday();
   if (!state.ruta[today]) state.ruta[today] = { zonaId: getZonaHoy(), entregas: {} };
   if (!state.ruta[today].entregas[clienteId]) {
