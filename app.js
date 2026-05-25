@@ -1467,18 +1467,17 @@ function cerrarBanner() {
     }, 3000);
   }
 
-  const saved = localStorage.getItem('texalar_user');
+ const saved = localStorage.getItem('texalar_user');
   if (saved) {
     try {
       currentUser = JSON.parse(saved);
+      // Sincronizar cola ANTES de cargar datos frescos
+      if (isOnline()) {
+        await sincronizarCola();
+      }
       await iniciarSesion();
     } catch(e) {
       localStorage.removeItem('texalar_user');
     }
-  }
-
-  // Sincronizar cola si hay internet
-  if (isOnline()) {
-    await sincronizarCola();
   }
 })();
