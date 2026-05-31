@@ -585,17 +585,17 @@ function renderRuta() {
           </div>
         </div>
       </div>
-      <button class="bid-btn" ontouchend="e2=event;e2.preventDefault();setBid('${c.id}',5,-1)" onclick="if(e2&&Date.now()-e2.timeStamp<500)return;setBid('${c.id}',5,-1)">−</button>
+      <button class="bid-btn" onclick="setBid('${c.id}',5,-1)">−</button>
             <span class="bid-val" id="bid5-${c.id}">${bid5}</span>
-            <button class="bid-btn" ontouchend="e2=event;e2.preventDefault();setBid('${c.id}',5,1)" onclick="if(e2&&Date.now()-e2.timeStamp<500)return;setBid('${c.id}',5,1)">+</button>
+            <button class="bid-btn" onclick="setBid('${c.id}',5,1)">+</button>
           </div>
         </div>
         <div class="bid-row">
           <span class="bid-lbl">Bidones 10L <span class="bid-precio">${formatPeso(PRECIO_10)}/u</span></span>
           <div class="bid-ctrl">
-            <button class="bid-btn" ontouchend="e2=event;e2.preventDefault();setBid('${c.id}',10,-1)" onclick="if(e2&&Date.now()-e2.timeStamp<500)return;setBid('${c.id}',10,-1)">−</button>
+            <button class="bid-btn" onclick="setBid('${c.id}',10,-1)">−</button>
             <span class="bid-val" id="bid10-${c.id}">${bid10}</span>
-            <button class="bid-btn" ontouchend="e2=event;e2.preventDefault();setBid('${c.id}',10,1)" onclick="if(e2&&Date.now()-e2.timeStamp<500)return;setBid('${c.id}',10,1)">+</button>
+            <button class="bid-btn" onclick="setBid('${c.id}',10,1)">+</button>
       <div class="pago-selector">
         <div class="pago-label">Pago</div>
         <div class="pago-btns">
@@ -669,7 +669,7 @@ let setBidLock = false;
 async function setBid(clienteId, tipo, delta) {
   if (setBidLock) return;
   setBidLock = true;
-  setTimeout(() => { setBidLock = false; }, 400);
+  setTimeout(() => { setBidLock = false; }, 600);
 
   const today = getToday();
   if (!state.ruta[today]) state.ruta[today] = { zonaId: getZonaHoy(), entregas: {} };
