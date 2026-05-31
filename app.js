@@ -761,7 +761,10 @@ function renderHistorial() {
   const entregasHoy = state.ruta[today]?.entregas || {};
   const zonaIdHoy = getZonaHoy();
   const zonaNombreHoy = state.zonas.find(z => z.id === zonaIdHoy)?.nombre || 'Sin zona';
-  const clientesEntregadosHoy = state.clientes.filter(c => entregasHoy[c.id]?.entregado);
+  const clientesEntregadosHoy = state.clientes.filter(c => 
+    entregasHoy[c.id]?.entregado && c.zonaId === zonaIdHoy
+  );
+  
 
   let htmlHoy = '';
   if (clientesEntregadosHoy.length) {
