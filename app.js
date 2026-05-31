@@ -811,7 +811,7 @@ let htmlHoy = '';
       </div>
     </div>`;
   }    entregasHoy[c.id]?.entregado
-  );
+  ;
   
 
  let htmlHoy = '';
