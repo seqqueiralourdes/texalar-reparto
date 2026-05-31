@@ -289,8 +289,8 @@ async function cargarDatosEmpleado() {
     const hace30 = new Date();
     hace30.setDate(hace30.getDate() - 30);
     const desde = hace30.toISOString().slice(0, 10);
-    const entregas = await supa(`entregas?usuario_id=eq.${currentUser.id}&fecha=gte.${desde}&select=id,cliente_id,fecha,bid5,bid10,pago,dev_bidones,dev_canillas,entregado&order=fecha.desc`);
-
+    const entregas = await supa(`entregas?usuario_id=eq.${currentUser.id}&fecha=gte.${desde}&select=id,cliente_id,fecha,bid5,bid10,pago,dev_bidones,dev_canillas,entregado,fecha_cobro&order=fecha.desc`);
+    
     state.ruta = {};
     const porFecha = {};
     entregas.forEach(e => {
@@ -333,6 +333,7 @@ async function cargarDatosEmpleado() {
           bid10: e.bid10,
           pago: e.pago,
           entregado: e.entregado
+          fecha_cobro: e.fecha_cobro || null
         };
         if (!zonaIdDia) {
           const cli = state.clientes.find(c => c.id === e.cliente_id);
@@ -349,6 +350,7 @@ async function cargarDatosEmpleado() {
           pago: entregasMap[c.id].pago || '',
           entregado: entregasMap[c.id].entregado,
           entregaId: entregasMap[c.id].entregaId,
+          fecha_cobro: entregasMap[c.id].fecha_cobro || null,
           clienteId: c.id
         }));
       state.historial.push({ fecha, zona: zonaNombre, zonaId: zonaIdDia, entregas: entregasArr });
