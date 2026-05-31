@@ -726,13 +726,28 @@ function renderStats() {
   const entregas = state.ruta[today]?.entregas || {};
   let totalEntregas = 0, totalBid5 = 0, totalBid10 = 0, totalPesos = 0;
 
+let totalEntregas = 0, totalBid5 = 0, totalBid10 = 0, totalPesos = 0;
+  const today = getToday();
+
+  // Entregas de hoy pagadas (no pendientes)
   Object.values(entregas).forEach(r => {
     if (r.entregado) {
       totalEntregas++;
       totalBid5  += r.bid5  || 0;
       totalBid10 += r.bid10 || 0;
-      if (r.pago !== 'pendiente') totalPesos += calcularTotal(r.bid5||0, r.bid10||0);
+      if (r.pago && r.pago !== 'pendiente') {
+        totalPesos += calcularTotal(r.bid5||0, r.bid10||0);
+      }
     }
+  });
+
+  // Pendientes de días anteriores cobrados HOY
+  state.historial.forEach(h => {
+    h.entregas.forEach(e => {
+      if (e.entregado && e.fecha_cobro === today && e.pago && e.pago !== 'pendiente') {
+        totalPesos += calcularTotal(e.bid5||0, e.bid10||0);
+      }
+    });
   });
 
   document.getElementById('stat-entregas').textContent = totalEntregas;
@@ -971,6 +986,13 @@ async function cobrarTransferencia(idx, clienteId, entregaId, esHoy) {
   await marcarCobrado(idx, clienteId, entregaId, esHoy, 'transferencia');
 }
 
+async function cobrarEfectivo(idx, clienteId, entregaId, esHoy) {
+  await marcarCobrado(idx, clienteId, entregaId, esHoy, 'efectivo');
+}
+async function cobrarTransferencia(idx, clienteId, entregaId, esHoy) {
+  await marcarCobrado(idx, clienteId, entregaId, esHoy, 'transferencia');
+}
+
 async function marcarCobrado(idx, clienteId, entregaId, esHoy, metodoPago) {
   const body   = document.getElementById('pend-body-' + idx);
   const nombre = document.getElementById('pend-nombre-' + idx);
@@ -983,25 +1005,37 @@ async function marcarCobrado(idx, clienteId, entregaId, esHoy, metodoPago) {
     </div>`;
   if (card) card.style.borderLeftColor = '#22c55e';
 
+  const today = getToday();
+
   try {
     if (esHoy) {
-      const today = getToday();
       if (state.ruta[today]?.entregas[clienteId]) {
         state.ruta[today].entregas[clienteId].pago = metodoPago;
+        state.ruta[today].entregas[clienteId].fecha_cobro = today;
         await guardarEntrega(clienteId, state.ruta[today].entregas[clienteId]);
       }
     } else if (entregaId && entregaId !== 'undefined') {
       if (isOnline()) {
         await supa(`entregas?id=eq.${entregaId}`, {
           method: 'PATCH',
-          body: JSON.stringify({ pago: metodoPago })
+          body: JSON.stringify({ pago: metodoPago, fecha_cobro: today })
         });
       } else {
-        agregarAColaOffline({ tipo: 'entrega_update', entregaId, datos: { pago: metodoPago } });
+        agregarAColaOffline({ tipo: 'entrega_update', entregaId, datos: { pago: metodoPago, fecha_cobro: today } });
       }
+      // Actualizar en historial local
+      state.historial.forEach(h => {
+        h.entregas.forEach(e => {
+          if (e.entregaId === entregaId) {
+            e.pago = metodoPago;
+            e.fecha_cobro = today;
+          }
+        });
+      });
     }
     actualizarCache();
     renderStats();
+    renderCobrosPendientes();
   } catch(e) { console.error(e); }
 }
 
