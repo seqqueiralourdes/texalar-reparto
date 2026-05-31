@@ -761,12 +761,7 @@ function renderHistorial() {
   const entregasHoy = state.ruta[today]?.entregas || {};
   const zonaIdHoy = getZonaHoy();
   const zonaNombreHoy = state.zonas.find(z => z.id === zonaIdHoy)?.nombre || 'Sin zona';
-  const clientesEntregadosHoy = state.clientes.filter(c => 
-    entregasHoy[c.id]?.entregado && c.zonaId === zonaIdHoy
-  );
-  
-
-  let htmlHoy = '';
+let htmlHoy = '';
   if (clientesEntregadosHoy.length) {
     const totalHoy = clientesEntregadosHoy.reduce((s, c) => s + calcularTotal(entregasHoy[c.id].bid5||0, entregasHoy[c.id].bid10||0), 0);
     htmlHoy = `
@@ -774,7 +769,7 @@ function renderHistorial() {
       <div class="hist-header" onclick="toggleHist('hoy')">
         <div>
           <div style="font-weight:600;">Hoy</div>
-          <div style="font-size:12px;color:#888;">${zonaNombreHoy} · ${clientesEntregadosHoy.length} entregas</div>
+          <div style="font-size:12px;color:#888;">${clientesEntregadosHoy.length} entregas</div>
         </div>
         <div style="display:flex;align-items:center;gap:10px;">
           <strong>${formatPeso(totalHoy)}</strong>
@@ -785,6 +780,7 @@ function renderHistorial() {
         ${clientesEntregadosHoy.map(c => {
           const r = entregasHoy[c.id];
           const tot = calcularTotal(r.bid5||0, r.bid10||0);
+          const zonaNombre = state.zonas.find(z => z.id === c.zonaId)?.nombre || 'Sin zona';
           const badge = r.pago === 'efectivo'
             ? '<span class="pago-badge pago-efec">💵 Efectivo</span>'
             : r.pago === 'transferencia'
@@ -792,13 +788,74 @@ function renderHistorial() {
               : r.pago === 'pendiente'
                 ? '<span class="pago-badge pago-pend">⏳ Pendiente</span>'
                 : '';
+          const devBid = r.devBidones || 0;
+          const devCan = r.devCanillas || 0;
           return `
-          <div class="hist-row">
-            <div>
-              <div style="font-size:14px;">${c.nombre}</div>
-              <div style="font-size:12px;color:#888;">${r.bid5||0}×5L + ${r.bid10||0}×10L ${badge}</div>
+          <div class="hist-row" style="align-items:flex-start;padding:10px 0;">
+            <div style="flex:1;">
+              <div style="font-size:14px;font-weight:600;">${c.nombre}</div>
+              <div style="font-size:12px;color:#888;margin-top:2px;">📍 ${zonaNombre}</div>
+              <div style="font-size:12px;color:#475569;margin-top:2px;">
+                ${r.bid5>0?`${r.bid5}×5L `:''}${r.bid10>0?`${r.bid10}×10L`:''}
+                ${badge}
+              </div>
+              ${devBid>0||devCan>0 ? `<div style="font-size:12px;color:#888;margin-top:2px;">
+                Devuelve: ${devBid>0?`🪣 ${devBid} bidón${devBid>1?'es':''} `:''}${devCan>0?`🚰 ${devCan} canilla${devCan>1?'s':''}`:''}</div>` : ''}
             </div>
-            <span style="font-weight:600;">${formatPeso(tot)}</span>
+            <span style="font-weight:600;white-space:nowrap;margin-left:12px;">${formatPeso(tot)}</span>
+          </div>`;
+        }).join('')}
+        <div class="hist-row hist-row-total" style="font-weight:700;font-size:15px;">
+          <span>Total</span><span>${formatPeso(totalHoy)}</span>
+        </div>
+      </div>
+    </div>`;
+  }    entregasHoy[c.id]?.entregado
+  );
+  
+
+ let htmlHoy = '';
+  if (clientesEntregadosHoy.length) {
+    const totalHoy = clientesEntregadosHoy.reduce((s, c) => s + calcularTotal(entregasHoy[c.id].bid5||0, entregasHoy[c.id].bid10||0), 0);
+    htmlHoy = `
+    <div class="hist-item" style="border-left:4px solid #0C447C;">
+      <div class="hist-header" onclick="toggleHist('hoy')">
+        <div>
+          <div style="font-weight:600;">Hoy</div>
+          <div style="font-size:12px;color:#888;">${clientesEntregadosHoy.length} entregas</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <strong>${formatPeso(totalHoy)}</strong>
+          <i class="ti ti-chevron-right hist-arrow" id="hist-arrow-hoy"></i>
+        </div>
+      </div>
+      <div class="hist-body" id="hist-body-hoy" style="display:none;">
+        ${clientesEntregadosHoy.map(c => {
+          const r = entregasHoy[c.id];
+          const tot = calcularTotal(r.bid5||0, r.bid10||0);
+          const zonaNombre = state.zonas.find(z => z.id === c.zonaId)?.nombre || 'Sin zona';
+          const badge = r.pago === 'efectivo'
+            ? '<span class="pago-badge pago-efec">💵 Efectivo</span>'
+            : r.pago === 'transferencia'
+              ? '<span class="pago-badge pago-tr">🔵 Transferencia</span>'
+              : r.pago === 'pendiente'
+                ? '<span class="pago-badge pago-pend">⏳ Pendiente</span>'
+                : '';
+          const devBid = r.devBidones || 0;
+          const devCan = r.devCanillas || 0;
+          return `
+          <div class="hist-row" style="align-items:flex-start;padding:10px 0;">
+            <div style="flex:1;">
+              <div style="font-size:14px;font-weight:600;">${c.nombre}</div>
+              <div style="font-size:12px;color:#888;margin-top:2px;">📍 ${zonaNombre}</div>
+              <div style="font-size:12px;color:#475569;margin-top:2px;">
+                ${r.bid5>0?`${r.bid5}×5L `:''}${r.bid10>0?`${r.bid10}×10L`:''}
+                ${badge}
+              </div>
+              ${devBid>0||devCan>0 ? `<div style="font-size:12px;color:#888;margin-top:2px;">
+                Devuelve: ${devBid>0?`🪣 ${devBid} bidón${devBid>1?'es':''} `:''}${devCan>0?`🚰 ${devCan} canilla${devCan>1?'s':''}`:''}</div>` : ''}
+            </div>
+            <span style="font-weight:600;white-space:nowrap;margin-left:12px;">${formatPeso(tot)}</span>
           </div>`;
         }).join('')}
         <div class="hist-row hist-row-total" style="font-weight:700;font-size:15px;">
