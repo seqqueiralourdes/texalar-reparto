@@ -624,11 +624,14 @@ function renderRuta() {
         </div>
       </div>
 
-      <button class="btn ${r.entregado ? 'btn-success' : 'btn-primary'} btn-block" onclick="toggleEntrega('${c.id}')">
+     <button class="btn ${r.entregado ? 'btn-success' : 'btn-primary'} btn-block" 
+        onclick="toggleEntrega('${c.id}')"
+        ${!r.entregado && !r.pago ? 'disabled style="opacity:0.4;cursor:not-allowed;"' : ''}>
         ${r.entregado
           ? '<i class="ti ti-check"></i> Entregado'
           : '<i class="ti ti-truck-delivery"></i> Marcar entregado'}
       </button>
+      ${!r.entregado && !r.pago ? '<div style="text-align:center;font-size:12px;color:#94a3b8;margin-top:6px;">Seleccioná un método de pago primero</div>' : ''}
       ${r.entregado && r.pago && r.pago !== 'pendiente' ? `
       <div style="text-align:center;margin-top:8px;color:#16a34a;font-size:13px;font-weight:600;">
         <i class="ti ti-circle-check"></i> Cobrado — ${r.pago === 'efectivo' ? '💵 Efectivo' : '🔵 Transferencia'}
