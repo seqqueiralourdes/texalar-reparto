@@ -332,7 +332,7 @@ async function cargarDatosEmpleado() {
           bid5: e.bid5,
           bid10: e.bid10,
           pago: e.pago,
-          entregado: e.entregado
+          entregado: e.entregado,
           fecha_cobro: e.fecha_cobro || null
         };
         if (!zonaIdDia) {
