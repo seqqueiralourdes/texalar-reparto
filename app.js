@@ -775,7 +775,13 @@ function renderHistorial() {
   const zonaIdHoy = getZonaHoy();
 
   const clientesEntregadosHoy = state.clientes.filter(c => entregasHoy[c.id]?.entregado);
-
+const esDomingo = new Date().getDay() === 0;
+  const botonLimpiar = esDomingo
+    ? `<button class="btn btn-outline" style="width:100%;margin-bottom:16px;border-color:#dc2626;color:#dc2626;" onclick="limpiarHistorialSemana()">
+        <i class="ti ti-trash"></i> Limpiar historial de la semana
+      </button>`
+    : '';
+  
   let htmlHoy = '';
   if (clientesEntregadosHoy.length) {
     const totalHoy = clientesEntregadosHoy.reduce((s, c) => s + calcularTotal(entregasHoy[c.id].bid5||0, entregasHoy[c.id].bid10||0), 0);
@@ -827,12 +833,12 @@ function renderHistorial() {
   }
 
   if (!state.historial.length && !clientesEntregadosHoy.length) {
-    list.innerHTML = '<div class="empty">Todavía no hay historial de entregas.</div>';
+    list.innerHTML = botonLimpiar + '<div class="empty">Todavía no hay historial de entregas.</div>';
     return;
   }
 
-  list.innerHTML = htmlHoy + state.historial.map((h, idx) => {
-    const uid = 'h' + idx;
+list.innerHTML = botonLimpiar + htmlHoy + state.historial.map((h, idx) => {
+  const uid = 'h' + idx;
     const total = h.entregas.reduce((s, e) => e.entregado ? s + calcularTotal(e.bid5||0, e.bid10||0) : s, 0);
     const efectivo = h.entregas.filter(e => e.entregado && e.pago === 'efectivo').reduce((s,e) => s + calcularTotal(e.bid5||0,e.bid10||0), 0);
     const transf   = h.entregas.filter(e => e.entregado && e.pago === 'transferencia').reduce((s,e) => s + calcularTotal(e.bid5||0,e.bid10||0), 0);
@@ -887,6 +893,36 @@ function toggleHist(uid) {
   const open  = body.style.display !== 'none';
   body.style.display    = open ? 'none' : 'block';
   arrow.style.transform = open ? '' : 'rotate(90deg)';
+}
+
+async function limpiarHistorialSemana() {
+  if (!confirm('¿Limpiar todo el historial de esta semana? Esta acción no se puede deshacer.')) return;
+  showLoading(true);
+  try {
+    // Calcular el lunes de esta semana
+    const hoy = new Date();
+    const lunes = new Date(hoy);
+    lunes.setDate(hoy.getDate() - ((hoy.getDay() + 6) % 7));
+    lunes.setHours(0,0,0,0);
+    const lunesFecha = lunes.toISOString().slice(0,10);
+
+    if (isOnline()) {
+      await supa(`entregas?usuario_id=eq.${currentUser.id}&fecha=gte.${lunesFecha}`, { method: 'DELETE' });
+    }
+
+    // Limpiar también localmente
+    state.historial = [];
+    const today = getToday();
+    if (state.ruta[today]) state.ruta[today].entregas = {};
+
+    actualizarCache();
+    renderAll();
+    alert('Historial de la semana limpiado correctamente.');
+  } catch(e) {
+    alert('Error al limpiar el historial.');
+    console.error(e);
+  }
+  showLoading(false);
 }
 
 // ─── Cobros pendientes ────────────────────────────────────────────
