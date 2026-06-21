@@ -728,9 +728,6 @@ function renderStats() {
   const entregas = state.ruta[today]?.entregas || {};
   let totalEntregas = 0, totalBid5 = 0, totalBid10 = 0, totalPesos = 0;
 
-let totalEntregas = 0, totalBid5 = 0, totalBid10 = 0, totalPesos = 0;
-  const today = getToday();
-
   // Entregas de hoy pagadas (no pendientes)
   Object.values(entregas).forEach(r => {
     if (r.entregado) {
