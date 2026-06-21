@@ -985,13 +985,6 @@ async function cobrarTransferencia(idx, clienteId, entregaId, esHoy) {
   await marcarCobrado(idx, clienteId, entregaId, esHoy, 'transferencia');
 }
 
-async function cobrarEfectivo(idx, clienteId, entregaId, esHoy) {
-  await marcarCobrado(idx, clienteId, entregaId, esHoy, 'efectivo');
-}
-async function cobrarTransferencia(idx, clienteId, entregaId, esHoy) {
-  await marcarCobrado(idx, clienteId, entregaId, esHoy, 'transferencia');
-}
-
 async function marcarCobrado(idx, clienteId, entregaId, esHoy, metodoPago) {
   const body   = document.getElementById('pend-body-' + idx);
   const nombre = document.getElementById('pend-nombre-' + idx);
